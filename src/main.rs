@@ -1,11 +1,48 @@
-#[macro_use] extern crate rocket;
+#[macro_use]
+extern crate rocket;
+use identity::iota::ExplorerUrl;
+use identity::iota::IotaDID;
+
+mod config;
+mod wallet;
+
+use config::Config;
+use wallet::Wallet;
 
 #[get("/")]
 fn index() -> &'static str {
     "Hello, world!"
 }
 
+async fn print_wallet(wallet: &Wallet) {
+    let iota_did: &IotaDID = wallet.account.did();
+    println!(
+        "Local Document from {} = {:#?}",
+        iota_did,
+        wallet.account.state().document()
+    );
+    let explorer: &ExplorerUrl = ExplorerUrl::mainnet();
+    println!(
+        "Explore the DID Document = {}",
+        explorer.resolver_url(iota_did).unwrap()
+    );
+}
+
 #[launch]
-fn rocket() -> _ {
-    rocket::build().mount("/", routes![index])
+async fn rocket() -> _ {
+    let rocket = rocket::build();
+    let figment = rocket.figment();
+    let config: Config = figment.extract().expect("config");
+
+    let wallet: Wallet = Wallet::load(
+        config.stronghold_path.to_string().into(),
+        config.password.to_string(),
+    )
+    .await;
+    print_wallet(&wallet).await;
+
+    rocket
+        .mount("/", routes![index])
+        .manage(config)
+        .manage(wallet)
 }
