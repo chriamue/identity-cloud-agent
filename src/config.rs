@@ -5,4 +5,5 @@ pub struct Config {
     pub ext_hostname: String,
     pub stronghold_path: String,
     pub password: String,
+    pub endpoint: String,
 }

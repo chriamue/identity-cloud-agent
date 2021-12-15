@@ -1,11 +1,11 @@
 #[macro_use]
 extern crate rocket;
-use identity::iota::ExplorerUrl;
 use identity::iota::IotaDID;
 use rocket::get;
 use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 
 mod config;
+mod connection;
 mod resolver;
 mod wallet;
 
@@ -19,17 +19,16 @@ fn index() -> &'static str {
 }
 
 async fn print_wallet(wallet: &Wallet) {
-    let iota_did: &IotaDID = wallet.account.did();
+    let lock = wallet.identity.lock().await;
+    let iota_did: &IotaDID = lock.try_did().unwrap();
     println!(
         "Local Document from {} = {:#?}",
         iota_did,
-        wallet.account.state().document()
+        lock.to_document()
     );
-    let explorer: &ExplorerUrl = ExplorerUrl::mainnet();
-    println!(
-        "Explore the DID Document = {}",
-        explorer.resolver_url(iota_did).unwrap()
-    );
+    let network = iota_did.network().unwrap();
+    let explorer = network.explorer_url().unwrap();
+    println!("Explore the DID Document = {}", explorer.to_string());
 }
 
 #[launch]
@@ -41,6 +40,7 @@ async fn rocket() -> _ {
     let wallet: Wallet = Wallet::load(
         config.stronghold_path.to_string().into(),
         config.password.to_string(),
+        config.endpoint.to_string(),
     )
     .await;
     print_wallet(&wallet).await;
@@ -52,6 +52,8 @@ async fn rocket() -> _ {
                 index,
                 wallet::get_all_dids,
                 wallet::get_public_did,
+                wallet::get_did_endpoint,
+                wallet::post_did_endpoint,
                 resolver::get_resolve
             ],
         )
