@@ -6,12 +6,13 @@ use rocket::get;
 use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 
 mod config;
+mod resolver;
 mod wallet;
 
 use config::Config;
 use wallet::Wallet;
 
-#[openapi(tag = "Index")]
+#[openapi(skip)]
 #[get("/")]
 fn index() -> &'static str {
     "Hello, world!"
@@ -45,7 +46,15 @@ async fn rocket() -> _ {
     print_wallet(&wallet).await;
 
     rocket
-        .mount("/", openapi_get_routes![index, wallet::get_all_dids])
+        .mount(
+            "/",
+            openapi_get_routes![
+                index,
+                wallet::get_all_dids,
+                wallet::get_public_did,
+                resolver::get_resolve
+            ],
+        )
         .mount(
             "/swagger-ui/",
             make_swagger_ui(&SwaggerUIConfig {

@@ -3,11 +3,11 @@ use identity::account::AccountStorage;
 use identity::account::AutoSave;
 use identity::account::IdentitySetup;
 use identity::iota::IotaDID;
+use rocket::State;
 use rocket::{get, serde::json::Json};
-use rocket::{State};
 use rocket_okapi::okapi::schemars;
 use rocket_okapi::okapi::schemars::JsonSchema;
-use rocket_okapi::{openapi};
+use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -39,7 +39,7 @@ pub struct Did {
     key_type: String,
 }
 
-#[openapi(tag = "Wallet")]
+#[openapi(tag = "wallet")]
 #[get("/wallet/did")]
 pub fn get_all_dids(wallet: &State<Wallet>) -> Json<Vec<Did>> {
     let did: &IotaDID = wallet.account.did();
@@ -48,4 +48,15 @@ pub fn get_all_dids(wallet: &State<Wallet>) -> Json<Vec<Did>> {
         id: did.to_string(),
         key_type,
     }])
+}
+
+#[openapi(tag = "wallet")]
+#[get("/wallet/did/public")]
+pub fn get_public_did(wallet: &State<Wallet>) -> Json<Did> {
+    let did: &IotaDID = wallet.account.did();
+    let key_type = "Ed25519VerificationKey2018".to_string();
+    Json(Did {
+        id: did.to_string(),
+        key_type,
+    })
 }
