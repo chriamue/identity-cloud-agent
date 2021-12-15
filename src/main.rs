@@ -2,6 +2,8 @@
 extern crate rocket;
 use identity::iota::ExplorerUrl;
 use identity::iota::IotaDID;
+use rocket::get;
+use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 
 mod config;
 mod wallet;
@@ -9,6 +11,7 @@ mod wallet;
 use config::Config;
 use wallet::Wallet;
 
+#[openapi(tag = "Index")]
 #[get("/")]
 fn index() -> &'static str {
     "Hello, world!"
@@ -42,7 +45,14 @@ async fn rocket() -> _ {
     print_wallet(&wallet).await;
 
     rocket
-        .mount("/", routes![index])
+        .mount("/", openapi_get_routes![index, wallet::get_all_dids])
+        .mount(
+            "/swagger-ui/",
+            make_swagger_ui(&SwaggerUIConfig {
+                url: "../openapi.json".to_owned(),
+                ..Default::default()
+            }),
+        )
         .manage(config)
         .manage(wallet)
 }
