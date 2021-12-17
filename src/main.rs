@@ -7,10 +7,12 @@ use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 mod config;
 mod connection;
 mod didcomm;
+mod ping;
 mod resolver;
 mod wallet;
 
 use config::Config;
+use connection::Connections;
 use wallet::Wallet;
 
 #[openapi(skip)]
@@ -38,6 +40,8 @@ async fn rocket() -> _ {
     let figment = rocket.figment();
     let config: Config = figment.extract().expect("config");
 
+    let connections: Connections = Connections::default();
+
     let wallet: Wallet = Wallet::load(
         config.stronghold_path.to_string().into(),
         config.password.to_string(),
@@ -53,7 +57,9 @@ async fn rocket() -> _ {
                 index,
                 connection::post_create_invitation,
                 connection::post_receive_invitation,
+                connection::get_all_connections,
                 didcomm::post_endpoint,
+                ping::post_send_ping,
                 wallet::get_all_dids,
                 wallet::get_public_did,
                 wallet::get_did_endpoint,
@@ -70,4 +76,5 @@ async fn rocket() -> _ {
         )
         .manage(config)
         .manage(wallet)
+        .manage(connections)
 }
