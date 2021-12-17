@@ -1,16 +1,15 @@
+use crate::config::Config;
 use crate::wallet::get_did_endpoint;
 use crate::wallet::Wallet;
 use identity::iota::IotaDID;
-
+use rocket::http::Status;
 use rocket::State;
-use rocket::{post, serde::json::Json};
+use rocket::{delete, get, post, serde::json::Json};
 use rocket_okapi::okapi::schemars;
 use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
-
 pub mod invitation;
 use invitation::{build_issue_vc_invitation, Invitation};
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -25,6 +24,12 @@ pub struct Connection {
 #[derive(Default)]
 pub struct Connections {
     pub connections: Arc<Mutex<HashMap<String, Connection>>>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct ConnectionEndpoints {
+    pub my_endpoint: String,
+    pub their_endpoint: String,
 }
 
 #[openapi(tag = "out-of-band")]
@@ -74,4 +79,37 @@ pub async fn get_all_connections(connections: &State<Connections>) -> Json<Vec<C
     let lock = connections.connections.lock().await;
     let connections = lock.values().cloned().collect();
     Json(connections)
+}
+
+#[openapi(tag = "connection")]
+#[get("/connections/<conn_id>")]
+pub async fn get_connection(connections: &State<Connections>, conn_id: String) -> Json<Connection> {
+    let lock = connections.connections.lock().await;
+    let connection = lock.get(&conn_id).unwrap().clone();
+    Json(connection)
+}
+
+#[openapi(tag = "connection")]
+#[get("/connections/<conn_id>/endpoints")]
+pub async fn get_connection_endpoints(
+    config: &State<Config>,
+    connections: &State<Connections>,
+    conn_id: String,
+) -> Json<ConnectionEndpoints> {
+    let lock = connections.connections.lock().await;
+    let endpoint = config.endpoint.to_string();
+    let connection = lock.get(&conn_id).unwrap().clone();
+    let their_endpoint = connection.endpoint;
+    Json(ConnectionEndpoints {
+        my_endpoint: endpoint,
+        their_endpoint,
+    })
+}
+
+#[openapi(tag = "connection")]
+#[delete("/connections/<conn_id>")]
+pub async fn delete_connection(connections: &State<Connections>, conn_id: String) -> Status {
+    let mut lock = connections.connections.lock().await;
+    lock.remove(&conn_id).unwrap();
+    Status::Ok
 }
