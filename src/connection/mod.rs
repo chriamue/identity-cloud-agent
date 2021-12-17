@@ -1,7 +1,7 @@
 use crate::wallet::get_did_endpoint;
 use crate::wallet::Wallet;
 use identity::iota::IotaDID;
-use reqwest;
+
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::okapi::schemars;

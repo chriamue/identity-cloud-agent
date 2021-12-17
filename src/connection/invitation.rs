@@ -53,7 +53,7 @@ pub fn build_issue_vc_invitation(endpoint: String) -> Invitation {
         typ: "application/didcomm-plain+json".to_string(),
         type_: "https://didcomm.org/out-of-band/2.0/invitation".to_string(),
         id: Uuid::new_v4().to_string(),
-        body: body,
+        body,
         attachments: vec![attachment],
     };
     invitation
