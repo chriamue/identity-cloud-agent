@@ -50,6 +50,7 @@ async fn rocket() -> _ {
             "/",
             openapi_get_routes![
                 index,
+                connection::post_create_invitation,
                 wallet::get_all_dids,
                 wallet::get_public_did,
                 wallet::get_did_endpoint,
