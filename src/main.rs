@@ -6,6 +6,7 @@ use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 
 mod config;
 mod connection;
+mod didcomm;
 mod resolver;
 mod wallet;
 
@@ -51,6 +52,8 @@ async fn rocket() -> _ {
             openapi_get_routes![
                 index,
                 connection::post_create_invitation,
+                connection::post_receive_invitation,
+                didcomm::post_endpoint,
                 wallet::get_all_dids,
                 wallet::get_public_did,
                 wallet::get_did_endpoint,
