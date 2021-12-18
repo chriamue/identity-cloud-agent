@@ -35,9 +35,9 @@ pub struct ConnectionEndpoints {
 #[openapi(tag = "out-of-band")]
 #[post("/out-of-band/create-invitation")]
 pub async fn post_create_invitation(wallet: &State<Wallet>) -> Json<Invitation> {
-    let lock = wallet.identity.lock().await;
-    let did: &IotaDID = lock.try_did().unwrap();
-    let endpoint = get_did_endpoint(did.to_string()).to_string();
+    let lock = wallet.account.lock().await;
+    let did: &IotaDID = lock.did();
+    let endpoint = get_did_endpoint(did.to_string()).as_str().to_string();
     let invitation: Invitation = build_issue_vc_invitation(endpoint);
     Json(invitation)
 }

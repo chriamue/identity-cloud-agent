@@ -8,6 +8,6 @@ mod client_test {
     fn hello_world() {
         let client = Client::tracked(rocket()).expect("valid rocket instance");
         let response = client.get("/").dispatch();
-        assert_eq!(response.status(), Status::TemporaryRedirect);
+        assert_eq!(response.status(), Status::SeeOther);
     }
 }

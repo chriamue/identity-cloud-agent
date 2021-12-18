@@ -1,9 +1,11 @@
 #[macro_use]
 extern crate rocket;
+use identity::iota::ExplorerUrl;
 use identity::iota::IotaDID;
 use rocket::get;
 use rocket::response::Redirect;
 use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
+use std::thread;
 
 mod config;
 mod connection;
@@ -30,16 +32,14 @@ fn index() -> Redirect {
 }
 
 async fn print_wallet(wallet: &Wallet) {
-    let lock = wallet.identity.lock().await;
-    let iota_did: &IotaDID = lock.try_did().unwrap();
+    let lock = wallet.account.lock().await;
+    let iota_did: &IotaDID = lock.did();
+    println!("Local Document from {} = {:#?}", iota_did, lock.document());
+    let explorer: &ExplorerUrl = ExplorerUrl::mainnet();
     println!(
-        "Local Document from {} = {:#?}",
-        iota_did,
-        lock.to_document()
+        "Explore the DID Document = {}",
+        explorer.resolver_url(iota_did).unwrap()
     );
-    let network = iota_did.network().unwrap();
-    let explorer = network.explorer_url().unwrap();
-    println!("Explore the DID Document = {}", explorer.to_string());
 }
 
 #[launch]
@@ -52,13 +52,30 @@ pub fn rocket() -> _ {
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
-    let wallet = runtime.block_on(Wallet::load(
-        config.stronghold_path.to_string().into(),
-        config.password.to_string(),
-        config.endpoint.to_string(),
-    ));
+    let stronghold_path = config.stronghold_path.to_string();
+    let password = config.password.to_string();
+    let endpoint = config.endpoint.to_string();
+    let did = config.did.to_string();
 
-    runtime.block_on(print_wallet(&wallet));
+    let wallet = thread::spawn(move || {
+        runtime.block_on(Wallet::load(
+            stronghold_path.into(),
+            password.to_string(),
+            endpoint.to_string(),
+            did.to_string(),
+        ))
+    })
+    .join()
+    .expect("Thread panicked");
+
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+
+    let wallet = thread::spawn(move || {
+        runtime.block_on(print_wallet(&wallet));
+        wallet
+    })
+    .join()
+    .expect("Thread panicked");
 
     let webhook = Webhook::new(config.webhook_url.to_string());
 

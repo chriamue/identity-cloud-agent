@@ -28,8 +28,8 @@ pub async fn post_send_message(
     conn_id: String,
     payload: Json<Value>,
 ) -> Status {
-    let lock = wallet.identity.lock().await;
-    let did: &IotaDID = lock.try_did().unwrap();
+    let lock = wallet.account.lock().await;
+    let did: &IotaDID = lock.did();
 
     let lock = connections.connections.lock().await;
     let connection = lock.get(&conn_id).unwrap().clone();

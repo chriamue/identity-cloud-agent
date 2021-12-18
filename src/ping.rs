@@ -35,8 +35,8 @@ pub async fn post_send_ping(
     connections: &State<Connections>,
     conn_id: String,
 ) -> Json<PingResponse> {
-    let lock = wallet.identity.lock().await;
-    let did: &IotaDID = lock.try_did().unwrap();
+    let lock = wallet.account.lock().await;
+    let did: &IotaDID = lock.did();
 
     let lock = connections.connections.lock().await;
     let connection = lock.get(&conn_id).unwrap().clone();

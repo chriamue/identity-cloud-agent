@@ -7,4 +7,5 @@ pub struct Config {
     pub password: String,
     pub endpoint: String,
     pub webhook_url: String,
+    pub did: String,
 }

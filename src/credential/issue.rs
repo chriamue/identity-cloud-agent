@@ -5,6 +5,7 @@ use identity::core::Url;
 use identity::credential::Credential;
 use identity::credential::CredentialBuilder;
 use identity::credential::Subject;
+use identity::crypto::SignatureOptions;
 use identity::did::resolution;
 use identity::did::resolution::InputMetadata;
 use identity::iota::ClientMap;
@@ -61,8 +62,8 @@ pub async fn post_send_offer(
     connections: &State<Connections>,
     issue_request: Json<IssueRequest>,
 ) -> Json<Value> {
-    let lock = wallet.identity.lock().await;
-    let iota_did: &IotaDID = lock.try_did().unwrap();
+    let lock = wallet.account.lock().await;
+    let iota_did: &IotaDID = lock.did();
     let did = iota_did.clone();
 
     let client: ClientMap = ClientMap::new();
@@ -97,7 +98,7 @@ pub async fn post_send_offer(
         .unwrap();
 
     account
-        .sign(&iota_did, "key-1", &mut credential)
+        .sign("key-1", &mut credential, SignatureOptions::default())
         .await
         .unwrap();
 

@@ -1,8 +1,8 @@
+use identity::account::Account;
 use identity::account::AccountStorage;
 use identity::account::AutoSave;
-use identity::account::IdentityCreate;
+use identity::account::IdentitySetup;
 use identity::account::Result;
-use identity::account::{Account, IdentityState};
 use identity::core::Url;
 use identity::did::resolution;
 use identity::did::resolution::InputMetadata;
@@ -16,53 +16,73 @@ use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::str;
 use std::sync::Arc;
 use std::thread;
 use tokio::sync::Mutex;
 
 pub struct Wallet {
     pub account: Arc<Mutex<identity::account::Account>>,
-    pub identity: Arc<Mutex<identity::account::IdentityState>>,
 }
 
 impl Wallet {
-    pub async fn load(stronghold_path: PathBuf, password: String, endpoint: String) -> Self {
-        let account: Account = Account::builder()
+    pub async fn load(
+        stronghold_path: PathBuf,
+        password: String,
+        endpoint: String,
+        did: String,
+    ) -> Self {
+        let iota_did: IotaDID = IotaDID::try_from(did).unwrap();
+        println!("{:?}", iota_did);
+        let account: Account = match Account::builder()
             .autosave(AutoSave::Every)
-            .storage(AccountStorage::Stronghold(stronghold_path, Some(password)))
+            .storage(AccountStorage::Stronghold(
+                stronghold_path.clone(),
+                Some(password.to_string()),
+                None,
+            ))
             .autopublish(true)
-            .build()
+            .load_identity(iota_did)
             .await
-            .unwrap();
+        {
+            Ok(account) => account,
+            Err(err) => {
+                println!("{:?}", err);
+                let mut account = Account::builder()
+                    .autosave(AutoSave::Every)
+                    .storage(AccountStorage::Stronghold(
+                        stronghold_path,
+                        Some(password),
+                        None,
+                    ))
+                    .autopublish(true)
+                    .create_identity(IdentitySetup::default())
+                    .await
+                    .unwrap();
 
-        let identity: IdentityState = account
-            .create_identity(IdentityCreate::default())
-            .await
-            .unwrap();
+                account
+                    .update_identity()
+                    .create_method()
+                    .fragment("key-1")
+                    .apply()
+                    .await
+                    .unwrap();
 
-        let iota_did: &IotaDID = identity.try_did().unwrap();
-
-        account
-            .update_identity(&iota_did)
-            .create_method()
-            .fragment("key-1")
-            .apply()
-            .await
-            .unwrap();
-
-        account
-            .update_identity(&iota_did)
-            .create_service()
-            .fragment("endpoint")
-            .type_("Endpoint")
-            .endpoint(Url::parse(endpoint).unwrap())
-            .apply()
-            .await
-            .unwrap();
+                account
+                    .update_identity()
+                    .create_service()
+                    .fragment("endpoint")
+                    .type_("Endpoint")
+                    .endpoint(Url::parse(endpoint).unwrap())
+                    .apply()
+                    .await
+                    .unwrap();
+                account
+            }
+        };
 
         Wallet {
             account: Arc::new(Mutex::new(account)),
-            identity: Arc::new(Mutex::new(identity)),
         }
     }
 }
@@ -82,8 +102,8 @@ pub struct DidEndpoint {
 #[openapi(tag = "wallet")]
 #[get("/wallet/did")]
 pub async fn get_all_dids(wallet: &State<Wallet>) -> Json<Vec<Did>> {
-    let lock = wallet.identity.lock().await;
-    let did: &IotaDID = lock.try_did().unwrap();
+    let lock = wallet.account.lock().await;
+    let did: &IotaDID = lock.did();
     let key_type = "Ed25519VerificationKey2018".to_string();
     Json(vec![Did {
         id: did.to_string(),
@@ -94,8 +114,8 @@ pub async fn get_all_dids(wallet: &State<Wallet>) -> Json<Vec<Did>> {
 #[openapi(tag = "wallet")]
 #[get("/wallet/did/public")]
 pub async fn get_public_did(wallet: &State<Wallet>) -> Json<Did> {
-    let lock = wallet.identity.lock().await;
-    let did: &IotaDID = lock.try_did().unwrap();
+    let lock = wallet.account.lock().await;
+    let did: &IotaDID = lock.did();
     let key_type = "Ed25519VerificationKey2018".to_string();
     Json(Did {
         id: did.to_string(),
@@ -122,7 +142,9 @@ pub fn get_did_endpoint(did: String) -> Json<String> {
     let document = output.document.unwrap();
     let services = document.service();
     let service = services.get(0).unwrap();
-    Json(service.service_endpoint().to_string())
+    let endpoint = service.service_endpoint().to_string();
+    let endpoint = endpoint.replace("\"", "");
+    Json(endpoint)
 }
 
 #[openapi(tag = "wallet")]
@@ -131,13 +153,9 @@ pub async fn post_did_endpoint(
     wallet: &State<Wallet>,
     post_data: Json<DidEndpoint>,
 ) -> Result<(), NotFound<String>> {
-    let identity = wallet.identity.lock().await;
-
-    let iota_did: &IotaDID = identity.try_did().unwrap();
-
-    let account = wallet.account.lock().await;
+    let mut account = wallet.account.lock().await;
     account
-        .update_identity(&iota_did)
+        .update_identity()
         .create_service()
         .fragment("endpoint")
         .type_("Endpoint")
