@@ -2,6 +2,7 @@
 extern crate rocket;
 use identity::iota::IotaDID;
 use rocket::get;
+use rocket::response::Redirect;
 use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 
 mod config;
@@ -20,8 +21,8 @@ use wallet::Wallet;
 
 #[openapi(skip)]
 #[get("/")]
-fn index() -> &'static str {
-    "Hello, world!"
+fn index() -> Redirect {
+    Redirect::to("/swagger-ui")
 }
 
 async fn print_wallet(wallet: &Wallet) {
