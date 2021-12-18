@@ -11,6 +11,7 @@ mod ledger;
 mod message;
 mod ping;
 mod resolver;
+mod server;
 mod wallet;
 
 use config::Config;
@@ -67,11 +68,13 @@ async fn rocket() -> _ {
                 ledger::get_did_endpoint,
                 message::post_send_message,
                 ping::post_send_ping,
+                resolver::get_resolve,
+                server::get_live,
+                server::get_ready,
                 wallet::get_all_dids,
                 wallet::get_public_did,
                 wallet::get_did_endpoint,
-                wallet::post_did_endpoint,
-                resolver::get_resolve
+                wallet::post_did_endpoint
             ],
         )
         .mount(
