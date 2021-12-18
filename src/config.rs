@@ -6,4 +6,5 @@ pub struct Config {
     pub stronghold_path: String,
     pub password: String,
     pub endpoint: String,
+    pub webhook_url: String,
 }

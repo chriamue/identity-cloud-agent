@@ -1,6 +1,8 @@
 use crate::connection::invitation::Invitation;
 use crate::message::MessageRequest;
 use crate::ping::{PingRequest, PingResponse};
+use crate::topic::webhook::Webhook;
+use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::openapi;
 use serde_json::{json, Value};
@@ -8,7 +10,7 @@ use uuid::Uuid;
 
 #[openapi(tag = "didcomm")]
 #[post("/", format = "application/json", data = "<data>")]
-pub async fn post_endpoint(data: Json<Value>) -> Json<Value> {
+pub async fn post_endpoint(webhook: &State<Webhook>, data: Json<Value>) -> Json<Value> {
     match data["type"].as_str().unwrap() {
         "https://didcomm.org/out-of-band/2.0/invitation" => {
             let invitation: Invitation = serde_json::from_value(data.into_inner()).unwrap();
@@ -28,6 +30,7 @@ pub async fn post_endpoint(data: Json<Value>) -> Json<Value> {
             let message_request: MessageRequest =
                 serde_json::from_value(data.into_inner()).unwrap();
             println!("message: {:?}", message_request.payload);
+            webhook.send("/message", message_request.payload).await;
             Json(json!({}))
         }
         _ => Json(json!({})),

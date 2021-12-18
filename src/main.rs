@@ -13,10 +13,12 @@ mod message;
 mod ping;
 mod resolver;
 mod server;
+mod topic;
 mod wallet;
 
 use config::Config;
 use connection::Connections;
+use topic::webhook::Webhook;
 use wallet::Wallet;
 
 #[openapi(skip)]
@@ -54,6 +56,8 @@ async fn rocket() -> _ {
     .await;
     print_wallet(&wallet).await;
 
+    let webhook = Webhook::new(config.webhook_url.to_string());
+
     rocket
         .mount(
             "/",
@@ -72,6 +76,8 @@ async fn rocket() -> _ {
                 resolver::get_resolve,
                 server::get_live,
                 server::get_ready,
+                topic::post_topic,
+                topic::post_message_topic,
                 wallet::get_all_dids,
                 wallet::get_public_did,
                 wallet::get_did_endpoint,
@@ -88,4 +94,5 @@ async fn rocket() -> _ {
         .manage(config)
         .manage(wallet)
         .manage(connections)
+        .manage(webhook)
 }
