@@ -7,6 +7,7 @@ use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 
 mod config;
 mod connection;
+mod credential;
 mod didcomm;
 mod ledger;
 mod message;
@@ -63,6 +64,7 @@ async fn rocket() -> _ {
             "/",
             openapi_get_routes![
                 index,
+                credential::issue::post_send_offer,
                 connection::post_create_invitation,
                 connection::post_receive_invitation,
                 connection::get_all_connections,

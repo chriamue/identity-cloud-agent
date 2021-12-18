@@ -1,4 +1,5 @@
 use crate::connection::invitation::Invitation;
+use crate::credential::issue::Issuance;
 use crate::message::MessageRequest;
 use crate::ping::{PingRequest, PingResponse};
 use crate::topic::webhook::Webhook;
@@ -31,6 +32,11 @@ pub async fn post_endpoint(webhook: &State<Webhook>, data: Json<Value>) -> Json<
                 serde_json::from_value(data.into_inner()).unwrap();
             println!("message: {:?}", message_request.payload);
             webhook.send("/message", message_request.payload).await;
+            Json(json!({}))
+        }
+        "iota/issuance/0.1/issuance" => {
+            let issuance: Issuance = serde_json::from_value(data.into_inner()).unwrap();
+            println!("issuance: {:?}", issuance.signed_credential);
             Json(json!({}))
         }
         _ => Json(json!({})),

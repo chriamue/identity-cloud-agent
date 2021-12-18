@@ -44,6 +44,14 @@ impl Wallet {
 
         account
             .update_identity(&iota_did)
+            .create_method()
+            .fragment("key-1")
+            .apply()
+            .await
+            .unwrap();
+
+        account
+            .update_identity(&iota_did)
             .create_service()
             .fragment("endpoint")
             .type_("Endpoint")
