@@ -1,4 +1,5 @@
 use crate::connection::invitation::Invitation;
+use crate::message::MessageRequest;
 use crate::ping::{PingRequest, PingResponse};
 use rocket::{post, serde::json::Json};
 use rocket_okapi::openapi;
@@ -22,6 +23,12 @@ pub async fn post_endpoint(data: Json<Value>) -> Json<Value> {
                 thid: ping_request.id,
             };
             Json(json!(ping_response))
+        }
+        "iota/post/0.1/post" => {
+            let message_request: MessageRequest =
+                serde_json::from_value(data.into_inner()).unwrap();
+            println!("message: {:?}", message_request.payload);
+            Json(json!({}))
         }
         _ => Json(json!({})),
     }
