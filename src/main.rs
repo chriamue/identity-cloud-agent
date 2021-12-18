@@ -7,6 +7,7 @@ use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 mod config;
 mod connection;
 mod didcomm;
+mod ledger;
 mod message;
 mod ping;
 mod resolver;
@@ -63,6 +64,7 @@ async fn rocket() -> _ {
                 connection::delete_connection,
                 connection::get_connection_endpoints,
                 didcomm::post_endpoint,
+                ledger::get_did_endpoint,
                 message::post_send_message,
                 ping::post_send_ping,
                 wallet::get_all_dids,
