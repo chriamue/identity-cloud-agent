@@ -14,6 +14,7 @@ mod message;
 mod ping;
 mod resolver;
 mod server;
+mod tests;
 mod topic;
 mod wallet;
 
@@ -42,20 +43,22 @@ async fn print_wallet(wallet: &Wallet) {
 }
 
 #[launch]
-async fn rocket() -> _ {
+pub fn rocket() -> _ {
     let rocket = rocket::build();
     let figment = rocket.figment();
     let config: Config = figment.extract().expect("config");
 
     let connections: Connections = Connections::default();
 
-    let wallet: Wallet = Wallet::load(
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+
+    let wallet = runtime.block_on(Wallet::load(
         config.stronghold_path.to_string().into(),
         config.password.to_string(),
         config.endpoint.to_string(),
-    )
-    .await;
-    print_wallet(&wallet).await;
+    ));
+
+    runtime.block_on(print_wallet(&wallet));
 
     let webhook = Webhook::new(config.webhook_url.to_string());
 

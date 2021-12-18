@@ -70,8 +70,7 @@ pub async fn post_send_offer(
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
     let output = thread::spawn(move || {
-        let out = runtime.block_on(resolution::resolve(did.to_string(), input, &client));
-        out
+        runtime.block_on(resolution::resolve(did.to_string(), input, &client))
     })
     .join()
     .expect("Thread panicked")

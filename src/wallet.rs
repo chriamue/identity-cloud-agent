@@ -148,3 +148,18 @@ pub async fn post_did_endpoint(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::rocket;
+    use rocket::http::Status;
+    use rocket::local::blocking::Client;
+
+    #[test]
+    fn test_public_did() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+
+        let response = client.get("/wallet/did/public").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+    }
+}
