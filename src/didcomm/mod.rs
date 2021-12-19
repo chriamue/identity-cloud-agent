@@ -2,7 +2,7 @@ use crate::connection::invitation::Invitation;
 use crate::credential::{issue::Issuance, Credentials};
 use crate::message::MessageRequest;
 use crate::ping::{PingRequest, PingResponse};
-use crate::topic::webhook::Webhook;
+use crate::webhook::Webhook;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::openapi;
@@ -12,7 +12,7 @@ use uuid::Uuid;
 #[openapi(tag = "didcomm")]
 #[post("/", format = "application/json", data = "<data>")]
 pub async fn post_endpoint(
-    webhook: &State<Webhook>,
+    webhook: &State<Box<dyn Webhook>>,
     credentials: &State<Credentials>,
     data: Json<Value>,
 ) -> Json<Value> {
@@ -35,7 +35,10 @@ pub async fn post_endpoint(
             let message_request: MessageRequest =
                 serde_json::from_value(data.into_inner()).unwrap();
             info!("message: {:?}", message_request.payload);
-            webhook.send("/message", message_request.payload).await;
+            webhook
+                .post("message", &message_request.payload)
+                .await
+                .unwrap();
             Json(json!({}))
         }
         "iota/issuance/0.1/issuance" => {

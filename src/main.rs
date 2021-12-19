@@ -20,11 +20,11 @@ mod server;
 mod tests;
 mod topic;
 mod wallet;
+mod webhook;
 
 use config::Config;
 use connection::Connections;
 use credential::Credentials;
-use topic::webhook::Webhook;
 use wallet::Wallet;
 
 #[openapi(skip)]
@@ -73,7 +73,8 @@ pub fn rocket() -> _ {
     .join()
     .expect("Thread panicked");
 
-    let webhook = Webhook::new(config.webhook_url.to_string());
+    let webhook =
+        Box::new(webhook::Client::new(config.webhook_url.to_string())) as Box<dyn webhook::Webhook>;
 
     rocket
         .mount(
