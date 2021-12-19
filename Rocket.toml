@@ -5,10 +5,9 @@ stronghold_path = "account-stronghold.hodl"
 password = "changeme"
 endpoint = "http://localhost:8000"
 webhook_url = "http://localhost:8000"
-did = "did:iota:9S5R1VKMAWvjMpfY5Higvy25Corht5HwGd14Tr7Fu9h"
+did = "did:iota:6HnYPKwSAzf3yRLtkWN7uAUHEf8cCAfdyRSK1EJXSaUU"
 
 [debug]
-log_level = "debug"
 port = 8000
 ext_hostname = "http://localhost:8000"
 

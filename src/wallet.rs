@@ -77,6 +77,7 @@ impl Wallet {
                     .apply()
                     .await
                     .unwrap();
+                info!("created new identity: {:?}", account.did());
                 account
             }
         };

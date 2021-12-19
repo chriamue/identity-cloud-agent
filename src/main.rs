@@ -23,6 +23,7 @@ mod wallet;
 
 use config::Config;
 use connection::Connections;
+use credential::Credentials;
 use topic::webhook::Webhook;
 use wallet::Wallet;
 
@@ -50,6 +51,7 @@ pub fn rocket() -> _ {
     let config: Config = figment.extract().expect("config");
 
     let connections: Connections = Connections::default();
+    let credentials: Credentials = Credentials::default();
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
@@ -78,13 +80,14 @@ pub fn rocket() -> _ {
             "/",
             openapi_get_routes![
                 index,
-                credential::issue::post_send_offer,
                 connection::post_create_invitation,
                 connection::post_receive_invitation,
                 connection::get_all_connections,
                 connection::get_connection,
                 connection::delete_connection,
                 connection::get_connection_endpoints,
+                credential::issue::post_send_offer,
+                credential::get_all_credentials,
                 didcomm::post_endpoint,
                 ledger::get_did_endpoint,
                 message::post_send_message,
@@ -110,5 +113,6 @@ pub fn rocket() -> _ {
         .manage(config)
         .manage(wallet)
         .manage(connections)
+        .manage(credentials)
         .manage(webhook)
 }

@@ -47,7 +47,7 @@ pub struct IssueRequest {
     pub attributes: Value,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Issuance {
     #[serde(rename = "type")]
     pub type_: String,
@@ -85,10 +85,8 @@ pub async fn post_send_offer(
     let lock = connections.connections.lock().await;
     let connection = lock.get(&conn_id).unwrap().clone();
 
-    let account = wallet.account.lock().await;
-
     let subject: Subject = Subject::from_json_value(issue_request.attributes).unwrap();
-
+    std::mem::drop(lock);
     let mut credential: Credential = CredentialBuilder::default()
         .id(Url::parse("https://example.edu/credentials/3732").unwrap())
         .issuer(Url::parse(document.id().to_string().as_str()).unwrap())
@@ -97,6 +95,7 @@ pub async fn post_send_offer(
         .build()
         .unwrap();
 
+    let account = wallet.account.lock().await;
     account
         .sign("key-1", &mut credential, SignatureOptions::default())
         .await
@@ -106,6 +105,7 @@ pub async fn post_send_offer(
         type_: "iota/issuance/0.1/issuance".to_string(),
         signed_credential: credential.clone(),
     };
+    info!("issue: {:?}", issue);
 
     let client = reqwest::Client::new();
     let _res = client
