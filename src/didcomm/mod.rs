@@ -53,3 +53,62 @@ pub async fn post_endpoint(
         _ => Json(json!({})),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::connection::Connection;
+    use crate::ping::{PingRequest, PingResponse};
+    use crate::rocket;
+    use rocket::http::{ContentType, Status};
+    use rocket::local::blocking::Client;
+    use serde_json::{from_value, json, Value};
+
+    #[test]
+    fn test_send_ping() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/connections").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().unwrap();
+        let connections = response.as_array().unwrap();
+        assert_eq!(connections.len(), 0);
+
+        let response = client.post("/out-of-band/create-invitation").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let invitation: Value = response.into_json::<Value>().unwrap();
+        let invitation: String = serde_json::to_string(&invitation).unwrap();
+
+        let response = client
+            .post("/out-of-band/receive-invitation")
+            .header(ContentType::JSON)
+            .body(invitation)
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+
+        let response = client.get("/connections").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().unwrap();
+        let connections: Vec<Connection> = from_value(response).unwrap();
+
+        let body: Value = json!( {
+            "response_requested": true
+        });
+
+        let ping_request: PingRequest = PingRequest {
+            type_: "https://didcomm.org/trust-ping/2.0/ping".to_string(),
+            id: "foo".to_string(),
+            from: "bar".to_string(),
+            body,
+        };
+        let ping_request: String = serde_json::to_string(&ping_request).unwrap();
+
+        let response = client
+            .post("/")
+            .header(ContentType::JSON)
+            .body(ping_request)
+            .dispatch();
+
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<PingResponse>().unwrap();
+        assert_eq!(response.thid, "foo".to_string());
+    }
+}

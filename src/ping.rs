@@ -63,3 +63,46 @@ pub async fn post_send_ping(
     let ping_response: PingResponse = json.await.unwrap();
     Json(ping_response)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::connection::Connection;
+    use crate::rocket;
+    use rocket::http::{ContentType, Status};
+    use rocket::local::blocking::Client;
+    use serde_json::{from_value, Value};
+
+    #[test]
+    fn test_send_ping() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/connections").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().unwrap();
+        let connections = response.as_array().unwrap();
+        assert_eq!(connections.len(), 0);
+
+        let response = client.post("/out-of-band/create-invitation").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let invitation: Value = response.into_json::<Value>().unwrap();
+        let invitation: String = serde_json::to_string(&invitation).unwrap();
+
+        let response = client
+            .post("/out-of-band/receive-invitation")
+            .header(ContentType::JSON)
+            .body(invitation)
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+
+        let response = client.get("/connections").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().unwrap();
+        let connections: Vec<Connection> = from_value(response).unwrap();
+
+        let connection_id = connections[0].id.to_string();
+
+        let response = client
+            .post(format!("/connections/{}/send-ping", connection_id))
+            .dispatch();
+        assert_eq!(response.status(), Status::InternalServerError);
+    }
+}
