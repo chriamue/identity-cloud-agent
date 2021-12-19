@@ -8,12 +8,13 @@ use rocket::{delete, get, post, serde::json::Json};
 use rocket_okapi::okapi::schemars;
 use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
-pub mod invitation;
-use invitation::{build_issue_vc_invitation, Invitation};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+
+pub mod invitation;
+use invitation::{build_issue_vc_invitation, Invitation};
 
 #[derive(Default, Debug, PartialEq, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct Connection {
@@ -60,12 +61,15 @@ pub async fn post_receive_invitation(
         .to_string();
 
     let client = reqwest::Client::new();
-    client
+    match client
         .post(endpoint.to_string())
         .json(&invitation)
         .send()
         .await
-        .unwrap();
+    {
+        Ok(_) => (),
+        Err(err) => println!("{:?}", err),
+    };
     let connection = Connection { id, endpoint };
     let mut lock = connections.connections.lock().await;
     lock.insert(connection.id.to_string(), connection);
@@ -112,4 +116,40 @@ pub async fn delete_connection(connections: &State<Connections>, conn_id: String
     let mut lock = connections.connections.lock().await;
     lock.remove(&conn_id).unwrap();
     Status::Ok
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::rocket;
+    use rocket::http::{ContentType, Status};
+    use rocket::local::blocking::Client;
+    use serde_json::Value;
+
+    #[test]
+    fn test_connections() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/connections").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().unwrap();
+        let connections = response.as_array().unwrap();
+        assert_eq!(connections.len(), 0);
+
+        let response = client.post("/out-of-band/create-invitation").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let invitation: Value = response.into_json::<Value>().unwrap();
+        let invitation: String = serde_json::to_string(&invitation).unwrap();
+
+        let response = client
+            .post("/out-of-band/receive-invitation")
+            .header(ContentType::JSON)
+            .body(invitation)
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+
+        let response = client.get("/connections").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().unwrap();
+        let connections = response.as_array().unwrap();
+        assert_eq!(connections.len(), 1);
+    }
 }

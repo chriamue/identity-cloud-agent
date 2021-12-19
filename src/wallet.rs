@@ -172,12 +172,14 @@ mod tests {
     use crate::rocket;
     use rocket::http::Status;
     use rocket::local::blocking::Client;
+    use serde_json::Value;
 
     #[test]
     fn test_public_did() {
         let client = Client::tracked(rocket()).expect("valid rocket instance");
-
         let response = client.get("/wallet/did/public").dispatch();
         assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().unwrap();
+        assert!(response.get("id").is_some());
     }
 }
