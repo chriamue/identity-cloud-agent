@@ -33,7 +33,7 @@ impl Wallet {
         did: String,
     ) -> Self {
         let iota_did: IotaDID = IotaDID::try_from(did).unwrap();
-        println!("{:?}", iota_did);
+        info!("account: {:?}", iota_did);
         let account: Account = match Account::builder()
             .autosave(AutoSave::Every)
             .storage(AccountStorage::Stronghold(
@@ -47,7 +47,7 @@ impl Wallet {
         {
             Ok(account) => account,
             Err(err) => {
-                println!("{:?}", err);
+                error!("{:?}", err);
                 let mut account = Account::builder()
                     .autosave(AutoSave::Every)
                     .storage(AccountStorage::Stronghold(

@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate rocket;
+
 use identity::iota::ExplorerUrl;
 use identity::iota::IotaDID;
 use rocket::get;
@@ -31,10 +32,10 @@ fn index() -> Redirect {
     Redirect::to("/swagger-ui")
 }
 
-async fn print_wallet(wallet: &Wallet) {
+async fn log_wallet(wallet: &Wallet) {
     let lock = wallet.account.lock().await;
     let iota_did: &IotaDID = lock.did();
-    println!("Local Document from {} = {:#?}", iota_did, lock.document());
+    info!("Local Document from {} = {:#?}", iota_did, lock.document());
     let explorer: &ExplorerUrl = ExplorerUrl::mainnet();
     println!(
         "Explore the DID Document = {}",
@@ -58,20 +59,13 @@ pub fn rocket() -> _ {
     let did = config.did.to_string();
 
     let wallet = thread::spawn(move || {
-        runtime.block_on(Wallet::load(
+        let wallet = runtime.block_on(Wallet::load(
             stronghold_path.into(),
             password.to_string(),
             endpoint.to_string(),
             did.to_string(),
-        ))
-    })
-    .join()
-    .expect("Thread panicked");
-
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let wallet = thread::spawn(move || {
-        runtime.block_on(print_wallet(&wallet));
+        ));
+        runtime.block_on(log_wallet(&wallet));
         wallet
     })
     .join()
