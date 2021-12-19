@@ -1,7 +1,7 @@
 [default]
 ident = "identity-cloud-agent"
 
-stronghold_path = "account-stronghold.hodl"
+stronghold_path = "account-stronghold.hodl.example"
 password = "changeme"
 endpoint = "http://localhost:8000"
 webhook_url = "http://localhost:8000"
