@@ -8,8 +8,10 @@ use identity::credential::Subject;
 use identity::crypto::SignatureOptions;
 use identity::did::resolution;
 use identity::did::resolution::InputMetadata;
+use identity::did::DID;
 use identity::iota::ClientMap;
 use identity::iota::IotaDID;
+use identity::prelude::KeyPair;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::okapi::schemars;
@@ -62,9 +64,10 @@ pub async fn post_send_offer(
     connections: &State<Connections>,
     issue_request: Json<IssueRequest>,
 ) -> Json<Value> {
-    let lock = wallet.account.lock().await;
-    let iota_did: &IotaDID = lock.did();
+    let account = wallet.account.lock().await;
+    let iota_did: &IotaDID = account.did();
     let did = iota_did.clone();
+    std::mem::drop(account);
 
     let client: ClientMap = ClientMap::new();
     let input: InputMetadata = Default::default();
@@ -82,14 +85,19 @@ pub async fn post_send_offer(
     let issue_request = issue_request.into_inner();
     let conn_id = issue_request.connection_id;
 
-    let lock = connections.connections.lock().await;
-    let connection = lock.get(&conn_id).unwrap().clone();
+    let connections = connections.connections.lock().await;
+    let connection = connections.get(&conn_id).unwrap().clone();
+    std::mem::drop(connections);
 
-    let subject: Subject = Subject::from_json_value(issue_request.attributes).unwrap();
-    std::mem::drop(lock);
+    let subject_key: KeyPair = KeyPair::new_ed25519().unwrap();
+    let subject_did: IotaDID = IotaDID::new(subject_key.public().as_ref()).unwrap();
+
+    let mut subject: Subject = Subject::from_json_value(issue_request.attributes).unwrap();
+    subject.id = Some(Url::parse(subject_did.as_str()).unwrap());
+
     let mut credential: Credential = CredentialBuilder::default()
         .id(Url::parse("https://example.edu/credentials/3732").unwrap())
-        .issuer(Url::parse(document.id().to_string().as_str()).unwrap())
+        .issuer(Url::parse(document.id().as_str()).unwrap())
         .type_(issue_request.type_)
         .subject(subject)
         .build()
@@ -97,7 +105,7 @@ pub async fn post_send_offer(
 
     let account = wallet.account.lock().await;
     account
-        .sign("key-1", &mut credential, SignatureOptions::default())
+        .sign("sign-0", &mut credential, SignatureOptions::default())
         .await
         .unwrap();
 
@@ -105,7 +113,6 @@ pub async fn post_send_offer(
         type_: "iota/issuance/0.1/issuance".to_string(),
         signed_credential: credential.clone(),
     };
-    info!("issue: {:?}", issue);
 
     let client = reqwest::Client::new();
     let _res = client
