@@ -17,6 +17,7 @@ mod message;
 mod ping;
 mod presentation;
 mod resolver;
+mod schema;
 mod server;
 mod tests;
 mod topic;
@@ -26,6 +27,7 @@ mod webhook;
 use config::Config;
 use connection::Connections;
 use credential::Credentials;
+use schema::Schemas;
 use wallet::Wallet;
 
 #[openapi(skip)]
@@ -53,6 +55,7 @@ pub fn rocket() -> _ {
 
     let connections: Connections = Connections::default();
     let credentials: Credentials = Credentials::default();
+    let schemas: Schemas = Schemas::default();
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
 
@@ -96,6 +99,8 @@ pub fn rocket() -> _ {
                 ping::post_send_ping,
                 presentation::proposal::post_send_proposal,
                 resolver::get_resolve,
+                schema::post_schemas,
+                schema::get_all_schemas,
                 server::get_live,
                 server::get_ready,
                 topic::post_topic,
@@ -117,5 +122,6 @@ pub fn rocket() -> _ {
         .manage(wallet)
         .manage(connections)
         .manage(credentials)
+        .manage(schemas)
         .manage(webhook)
 }

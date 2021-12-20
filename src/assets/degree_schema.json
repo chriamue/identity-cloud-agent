@@ -1,0 +1,37 @@
+{
+    "$schema": "http://json-schema.org/draft-04/schema#",
+    "id": "https://example.org/examples/degree.json",
+    "type": "object",
+    "properties": {
+        "id": {
+            "type": "string"
+        },
+        "name": {
+            "type": "string"
+        },
+        "degree": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            },
+            "required": [
+                "type",
+                "name"
+            ]
+        },
+        "GPA": {
+            "type": "string"
+        }
+    },
+    "required": [
+        "id",
+        "name",
+        "degree",
+        "GPA"
+    ]
+}

@@ -87,7 +87,7 @@ mod tests {
         let response = client.get("/connections").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let response = response.into_json::<Value>().unwrap();
-        let connections: Vec<Connection> = from_value(response).unwrap();
+        let _connections: Vec<Connection> = from_value(response).unwrap();
 
         let body: Value = json!( {
             "response_requested": true
