@@ -15,6 +15,7 @@ mod didcomm;
 mod ledger;
 mod message;
 mod ping;
+mod presentation;
 mod resolver;
 mod server;
 mod tests;
@@ -93,6 +94,7 @@ pub fn rocket() -> _ {
                 ledger::get_did_endpoint,
                 message::post_send_message,
                 ping::post_send_ping,
+                presentation::proposal::post_send_proposal,
                 resolver::get_resolve,
                 server::get_live,
                 server::get_ready,
