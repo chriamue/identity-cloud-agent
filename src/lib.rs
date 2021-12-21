@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate rocket;
+use rocket::{Build, Rocket};
 
 use identity::iota::ExplorerUrl;
 use identity::iota::IotaDID;
@@ -8,27 +9,29 @@ use rocket::response::Redirect;
 use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 use std::thread;
 
-mod config;
-mod connection;
-mod credential;
-mod didcomm;
-mod ledger;
-mod message;
-mod ping;
-mod presentation;
-mod resolver;
-mod schema;
-mod server;
+pub mod config;
+pub mod connection;
+pub mod credential;
+pub mod didcomm;
+pub mod ledger;
+pub mod message;
+pub mod ping;
+pub mod presentation;
+pub mod resolver;
+pub mod schema;
+pub mod server;
 mod tests;
-mod topic;
-mod wallet;
-mod webhook;
+pub mod topic;
+pub mod wallet;
+pub mod webhook;
 
-use config::Config;
+pub use config::Config;
 use connection::Connections;
 use credential::Credentials;
+pub use didcomm::DidComm;
 use schema::Schemas;
 use wallet::Wallet;
+pub use webhook::Webhook;
 
 #[openapi(skip)]
 #[get("/")]
@@ -47,12 +50,12 @@ async fn log_wallet(wallet: &Wallet) {
     );
 }
 
-#[launch]
-pub fn rocket() -> _ {
-    let rocket = rocket::build();
-    let figment = rocket.figment();
-    let config: Config = figment.extract().expect("config");
-
+pub fn rocket(
+    rocket: Rocket<Build>,
+    config: Config,
+    webhook: Box<dyn webhook::Webhook>,
+    didcomm: Box<dyn didcomm::DidComm>,
+) -> Rocket<Build> {
     let connections: Connections = Connections::default();
     let credentials: Credentials = Credentials::default();
     let schemas: Schemas = Schemas::default();
@@ -76,9 +79,6 @@ pub fn rocket() -> _ {
     })
     .join()
     .expect("Thread panicked");
-
-    let webhook =
-        Box::new(webhook::Client::new(config.webhook_url.to_string())) as Box<dyn webhook::Webhook>;
 
     rocket
         .mount(
@@ -124,4 +124,18 @@ pub fn rocket() -> _ {
         .manage(credentials)
         .manage(schemas)
         .manage(webhook)
+        .manage(didcomm)
+}
+
+#[cfg(test)]
+pub fn test_rocket() -> Rocket<Build> {
+    let rocket = rocket::build();
+    let figment = rocket.figment();
+    let config: Config = figment.extract().expect("config");
+
+    let webhook = Box::new(webhook::test_client::TestClient::new(
+        config.webhook_url.to_string(),
+    )) as Box<dyn webhook::Webhook>;
+    let didcomm = Box::new(didcomm::test_client::TestClient::new()) as Box<dyn didcomm::DidComm>;
+    self::rocket(rocket, config, webhook, didcomm)
 }

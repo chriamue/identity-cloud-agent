@@ -49,14 +49,14 @@ pub async fn get_all_schemas(schemas: &State<Schemas>) -> Json<Value> {
 
 #[cfg(test)]
 mod tests {
-    use crate::rocket;
+    use crate::test_rocket;
     use rocket::http::{ContentType, Status};
     use rocket::local::blocking::Client;
     use serde_json::Value;
 
     #[test]
     fn test_schema() {
-        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
 
         let schema = include_str!("../assets/degree_schema.json");
 

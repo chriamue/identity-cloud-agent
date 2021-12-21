@@ -3,6 +3,14 @@ name = "identity-cloud-agent"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "identity_cloud_agent"
+path = "src/lib.rs"
+
+[[bin]]
+name = "identity_cloud_agent_bin"
+path = "src/bin.rs"
+
 [dependencies]
 async-trait = "0.1"
 http = "0.2"

@@ -63,13 +63,13 @@ pub async fn post_send_proposal(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rocket;
+    use crate::test_rocket;
     use rocket::http::{ContentType, Status};
     use rocket::local::blocking::Client;
 
     #[test]
     fn test_send_proposal() {
-        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
 
         let proof_request = ProofRequest {
             connection_id: "foo".to_string(),

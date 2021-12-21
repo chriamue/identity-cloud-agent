@@ -3,11 +3,25 @@ use crate::credential::{issue::Issuance, Credentials};
 use crate::message::MessageRequest;
 use crate::ping::{PingRequest, PingResponse};
 use crate::webhook::Webhook;
+use async_trait::async_trait;
+use reqwest::RequestBuilder;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::openapi;
 use serde_json::{json, Value};
 use uuid::Uuid;
+pub mod client;
+#[cfg(test)]
+pub mod test_client;
+
+pub use client::Client;
+
+#[async_trait]
+pub trait DidComm: Send + Sync {
+    fn request(&self, endpoint: &str, body: &Value) -> RequestBuilder;
+    async fn post(&self, endpoint: &str, body: &Value)
+        -> Result<reqwest::Response, reqwest::Error>;
+}
 
 #[openapi(tag = "didcomm")]
 #[post("/", format = "application/json", data = "<data>")]
@@ -46,6 +60,7 @@ pub async fn post_endpoint(
             let termination: Termination = serde_json::from_value(data.into_inner()).unwrap();
             let mut lock = connections.connections.lock().await;
             lock.remove(&termination.id).unwrap();
+            std::mem::drop(lock);
             let termination: TerminationResponse = TerminationResponse {
                 typ: "application/didcomm-plain+json".to_string(),
                 type_: "iota/termination/0.1/termination-response".to_string(),
@@ -71,14 +86,14 @@ pub async fn post_endpoint(
 mod tests {
     use crate::connection::Connection;
     use crate::ping::{PingRequest, PingResponse};
-    use crate::rocket;
+    use crate::test_rocket;
     use rocket::http::{ContentType, Status};
     use rocket::local::blocking::Client;
     use serde_json::{from_value, json, Value};
 
     #[test]
     fn test_send_ping() {
-        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
         let response = client.get("/connections").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let response = response.into_json::<Value>().unwrap();

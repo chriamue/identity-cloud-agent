@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::didcomm::DidComm;
 use crate::wallet::get_did_endpoint;
 use crate::wallet::Wallet;
 use identity::iota::IotaDID;
@@ -9,7 +10,7 @@ use rocket_okapi::okapi::schemars;
 use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -131,9 +132,14 @@ pub async fn get_connection_endpoints(
 
 #[openapi(tag = "connection")]
 #[delete("/connections/<conn_id>")]
-pub async fn delete_connection(connections: &State<Connections>, conn_id: String) -> Status {
+pub async fn delete_connection(
+    didcomm: &State<Box<dyn DidComm>>,
+    connections: &State<Connections>,
+    conn_id: String,
+) -> Status {
     let lock = connections.connections.lock().await;
-    let connection = lock.get(&conn_id).unwrap();
+    let connection = lock.get(&conn_id).unwrap().clone();
+    std::mem::drop(lock);
     let endpoint = connection.endpoint.to_string();
     let termination: Termination = Termination {
         typ: "application/didcomm-plain+json".to_string(),
@@ -141,13 +147,7 @@ pub async fn delete_connection(connections: &State<Connections>, conn_id: String
         id: connection.id.clone(),
         body: Value::default(),
     };
-    let client = reqwest::Client::new();
-    match client
-        .post(endpoint.to_string())
-        .json(&termination)
-        .send()
-        .await
-    {
+    match didcomm.post(&endpoint, &json!(termination)).await {
         Ok(_) => (),
         Err(err) => error!("{:?}", err),
     };
@@ -159,14 +159,14 @@ pub async fn delete_connection(connections: &State<Connections>, conn_id: String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::rocket;
+    use crate::test_rocket;
     use rocket::http::{ContentType, Status};
     use rocket::local::blocking::Client;
     use serde_json::Value;
 
     #[test]
     fn test_connections() {
-        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
         let response = client.get("/connections").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let response = response.into_json::<Value>().unwrap();
@@ -192,10 +192,9 @@ mod tests {
         assert_eq!(connections.len(), 1);
     }
 
-    #[ignore]
     #[test]
     fn test_termination() {
-        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
         let response = client.get("/connections").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let response = response.into_json::<Value>().unwrap();
@@ -224,7 +223,7 @@ mod tests {
         let response = client
             .delete(format!("/connections/{}", connection.id))
             .dispatch();
-        assert_eq!(response.status(), Status::InternalServerError);
+        assert_eq!(response.status(), Status::Ok);
 
         let response = client.get("/connections").dispatch();
         assert_eq!(response.status(), Status::Ok);

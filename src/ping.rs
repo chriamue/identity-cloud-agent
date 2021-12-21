@@ -67,14 +67,14 @@ pub async fn post_send_ping(
 #[cfg(test)]
 mod tests {
     use crate::connection::Connection;
-    use crate::rocket;
+    use crate::test_rocket;
     use rocket::http::{ContentType, Status};
     use rocket::local::blocking::Client;
     use serde_json::{from_value, Value};
 
     #[test]
     fn test_send_ping() {
-        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
         let response = client.get("/connections").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let response = response.into_json::<Value>().unwrap();

@@ -25,14 +25,14 @@ pub async fn get_all_credentials(credentials: &State<Credentials>) -> Json<Value
 
 #[cfg(test)]
 mod tests {
-    use crate::rocket;
+    use crate::test_rocket;
     use rocket::http::Status;
     use rocket::local::blocking::Client;
     use serde_json::Value;
 
     #[test]
     fn test_credentials() {
-        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
         let response = client.get("/credentials").dispatch();
         assert_eq!(response.status(), Status::Ok);
         let response = response.into_json::<Value>().unwrap();
