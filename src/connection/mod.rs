@@ -9,6 +9,7 @@ use rocket_okapi::okapi::schemars;
 use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -31,6 +32,24 @@ pub struct Connections {
 pub struct ConnectionEndpoints {
     pub my_endpoint: String,
     pub their_endpoint: String,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct Termination {
+    pub typ: String,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub id: String,
+    pub body: Value,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct TerminationResponse {
+    pub typ: String,
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub id: String,
+    pub body: Value,
 }
 
 #[openapi(tag = "out-of-band")]
@@ -68,7 +87,7 @@ pub async fn post_receive_invitation(
         .await
     {
         Ok(_) => (),
-        Err(err) => println!("{:?}", err),
+        Err(err) => error!("{:?}", err),
     };
     let connection = Connection { id, endpoint };
     let mut lock = connections.connections.lock().await;
@@ -113,6 +132,25 @@ pub async fn get_connection_endpoints(
 #[openapi(tag = "connection")]
 #[delete("/connections/<conn_id>")]
 pub async fn delete_connection(connections: &State<Connections>, conn_id: String) -> Status {
+    let lock = connections.connections.lock().await;
+    let connection = lock.get(&conn_id).unwrap();
+    let endpoint = connection.endpoint.to_string();
+    let termination: Termination = Termination {
+        typ: "application/didcomm-plain+json".to_string(),
+        type_: "iota/termination/0.1/termination".to_string(),
+        id: connection.id.clone(),
+        body: Value::default(),
+    };
+    let client = reqwest::Client::new();
+    match client
+        .post(endpoint.to_string())
+        .json(&termination)
+        .send()
+        .await
+    {
+        Ok(_) => (),
+        Err(err) => error!("{:?}", err),
+    };
     let mut lock = connections.connections.lock().await;
     lock.remove(&conn_id).unwrap();
     Status::Ok
@@ -120,6 +158,7 @@ pub async fn delete_connection(connections: &State<Connections>, conn_id: String
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::rocket;
     use rocket::http::{ContentType, Status};
     use rocket::local::blocking::Client;
@@ -151,5 +190,46 @@ mod tests {
         let response = response.into_json::<Value>().unwrap();
         let connections = response.as_array().unwrap();
         assert_eq!(connections.len(), 1);
+    }
+
+    #[ignore]
+    #[test]
+    fn test_termination() {
+        let client = Client::tracked(rocket()).expect("valid rocket instance");
+        let response = client.get("/connections").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().unwrap();
+        let connections = response.as_array().unwrap();
+        assert_eq!(connections.len(), 0);
+
+        let response = client.post("/out-of-band/create-invitation").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let invitation: Value = response.into_json::<Value>().unwrap();
+        let invitation: String = serde_json::to_string(&invitation).unwrap();
+
+        let response = client
+            .post("/out-of-band/receive-invitation")
+            .header(ContentType::JSON)
+            .body(invitation)
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+
+        let response = client.get("/connections").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().unwrap();
+        let connections = response.as_array().unwrap();
+        assert_eq!(connections.len(), 1);
+
+        let connection: Connection = serde_json::from_value(connections[0].clone()).unwrap();
+        let response = client
+            .delete(format!("/connections/{}", connection.id))
+            .dispatch();
+        assert_eq!(response.status(), Status::InternalServerError);
+
+        let response = client.get("/connections").dispatch();
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().unwrap();
+        let connections = response.as_array().unwrap();
+        assert_eq!(connections.len(), 0);
     }
 }

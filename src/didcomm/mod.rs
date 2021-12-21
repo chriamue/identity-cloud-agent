@@ -1,4 +1,4 @@
-use crate::connection::invitation::Invitation;
+use crate::connection::{invitation::Invitation, Connections, Termination, TerminationResponse};
 use crate::credential::{issue::Issuance, Credentials};
 use crate::message::MessageRequest;
 use crate::ping::{PingRequest, PingResponse};
@@ -13,6 +13,7 @@ use uuid::Uuid;
 #[post("/", format = "application/json", data = "<data>")]
 pub async fn post_endpoint(
     webhook: &State<Box<dyn Webhook>>,
+    connections: &State<Connections>,
     credentials: &State<Credentials>,
     data: Json<Value>,
 ) -> Json<Value> {
@@ -40,6 +41,18 @@ pub async fn post_endpoint(
                 .await
                 .unwrap();
             Json(json!({}))
+        }
+        "iota/termination/0.1/termination" => {
+            let termination: Termination = serde_json::from_value(data.into_inner()).unwrap();
+            let mut lock = connections.connections.lock().await;
+            lock.remove(&termination.id).unwrap();
+            let termination: TerminationResponse = TerminationResponse {
+                typ: "application/didcomm-plain+json".to_string(),
+                type_: "iota/termination/0.1/termination-response".to_string(),
+                id: termination.id,
+                body: Value::default(),
+            };
+            Json(json!(termination))
         }
         "iota/issuance/0.1/issuance" => {
             let issuance: Issuance = serde_json::from_value(data.into_inner()).unwrap();
