@@ -36,3 +36,24 @@ pub fn get_did_endpoint(did: String) -> Json<EndpointResponse> {
         endpoint: service.service_endpoint().to_string(),
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::test_rocket;
+    use crate::Config;
+    use rocket::http::Status;
+    use rocket::local::blocking::Client;
+    use rocket::State;
+
+    #[test]
+    fn test_get_endpoint() {
+        let rocket = test_rocket();
+        let config: &State<Config> = State::get(&rocket).expect("managed `ConfigState`");
+        let did = config.did.to_string();
+        let client = Client::tracked(rocket).expect("valid rocket instance");
+        let response = client
+            .get(format!("/ledger/did-endpoint?did={}", did))
+            .dispatch();
+        assert_eq!(response.status(), Status::Ok);
+    }
+}
