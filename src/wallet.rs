@@ -1,6 +1,7 @@
 use identity::account::Account;
 use identity::account::AutoSave;
 use identity::account::IdentitySetup;
+use identity::account::MethodContent;
 use identity::account::Result;
 use identity::account_storage::Stronghold;
 use identity::core::Url;
@@ -62,6 +63,7 @@ impl Wallet {
                 account
                     .update_identity()
                     .create_method()
+                    .content(MethodContent::GenerateEd25519)
                     .fragment("key-1")
                     .apply()
                     .await
