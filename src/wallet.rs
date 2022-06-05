@@ -1,13 +1,12 @@
 use identity::account::Account;
-use identity::account::AccountStorage;
 use identity::account::AutoSave;
 use identity::account::IdentitySetup;
 use identity::account::Result;
+use identity::account_storage::Stronghold;
 use identity::core::Url;
-use identity::did::resolution;
-use identity::did::resolution::InputMetadata;
-use identity::iota::ClientMap;
-use identity::iota::IotaDID;
+use identity::iota::ResolvedIotaDocument;
+use identity::iota::Resolver;
+use identity::iota_core::IotaDID;
 use rocket::response::status::NotFound;
 use rocket::State;
 use rocket::{get, post, serde::json::Json};
@@ -17,8 +16,8 @@ use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::str;
+use std::str::FromStr;
 use std::sync::Arc;
-use std::thread;
 use tokio::sync::Mutex;
 
 pub struct Wallet {
@@ -36,11 +35,11 @@ impl Wallet {
         info!("account: {:?}", iota_did);
         let account: Account = match Account::builder()
             .autosave(AutoSave::Every)
-            .storage(AccountStorage::Stronghold(
-                stronghold_path.clone(),
-                Some(password.to_string()),
-                None,
-            ))
+            .storage(
+                Stronghold::new(&stronghold_path, password.to_string(), None)
+                    .await
+                    .unwrap(),
+            )
             .autopublish(true)
             .load_identity(iota_did)
             .await
@@ -50,11 +49,11 @@ impl Wallet {
                 error!("{:?}", err);
                 let mut account = Account::builder()
                     .autosave(AutoSave::Every)
-                    .storage(AccountStorage::Stronghold(
-                        stronghold_path,
-                        Some(password),
-                        None,
-                    ))
+                    .storage(
+                        Stronghold::new(&stronghold_path, password.to_string(), None)
+                            .await
+                            .unwrap(),
+                    )
                     .autopublish(true)
                     .create_identity(IdentitySetup::default())
                     .await
@@ -126,21 +125,12 @@ pub async fn get_public_did(wallet: &State<Wallet>) -> Json<Did> {
 
 #[openapi(tag = "wallet")]
 #[get("/wallet/get-did-endpoint?<did>")]
-pub fn get_did_endpoint(did: String) -> Json<String> {
-    let client: ClientMap = ClientMap::new();
-    let input: InputMetadata = Default::default();
+pub async fn get_did_endpoint(did: String) -> Json<String> {
+    let did = IotaDID::from_str(&did).unwrap();
+    let resolver: Resolver = Resolver::new().await.unwrap();
+    let resolved_did_document: ResolvedIotaDocument = resolver.resolve(&did).await.unwrap();
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let output = thread::spawn(move || {
-        let out = runtime.block_on(resolution::resolve(did.as_str(), input, &client));
-        out
-    })
-    .join()
-    .expect("Thread panicked")
-    .unwrap();
-
-    let document = output.document.unwrap();
+    let document = resolved_did_document.document;
     let services = document.service();
     let service = services.get(0).unwrap();
     let endpoint = service.service_endpoint().to_string();

@@ -1,5 +1,5 @@
 use identity::iota::ExplorerUrl;
-use identity::iota::IotaDID;
+use identity::iota_core::IotaDID;
 use rocket::{get, serde::json::Json};
 use rocket_okapi::openapi;
 

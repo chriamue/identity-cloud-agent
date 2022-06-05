@@ -3,7 +3,7 @@ extern crate rocket;
 use rocket::{Build, Rocket};
 
 use identity::iota::ExplorerUrl;
-use identity::iota::IotaDID;
+use identity::iota_core::IotaDID;
 use rocket::get;
 use rocket::response::Redirect;
 use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};

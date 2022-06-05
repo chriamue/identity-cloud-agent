@@ -31,7 +31,7 @@ pub async fn post_schemas(
     schema_request: Json<SchemaRequest>,
 ) -> Json<SchemaRequest> {
     let schema = schema_request.clone();
-    let schema = serde_json::to_string(&schema).unwrap();
+    let schema = serde_json::to_string(&schema.into_inner()).unwrap();
     let schema: Schema = Schema::from_json(&schema).unwrap();
     let mut schemas = schemas.schemas.lock().await;
     schemas.insert(schema.id.to_string(), schema);

@@ -4,8 +4,9 @@ use identity::core::Url;
 use identity::credential::Presentation;
 use identity::credential::PresentationBuilder;
 use identity::did::DID;
-use identity::iota::IotaDID;
+use identity::iota_core::IotaDID;
 use identity::prelude::KeyPair;
+use identity::prelude::*;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::okapi::schemars;
@@ -44,7 +45,7 @@ pub async fn post_send_proposal(
 
     let proof_request = proof_request.into_inner();
 
-    let presentation_key: KeyPair = KeyPair::new_ed25519().unwrap();
+    let presentation_key: KeyPair = KeyPair::new(KeyType::Ed25519).unwrap();
     let presentation_did: IotaDID = IotaDID::new(presentation_key.public().as_ref()).unwrap();
 
     let credentials = credentials.credentials.lock().await;

@@ -1,6 +1,6 @@
 use crate::connection::Connections;
 use crate::wallet::Wallet;
-use identity::iota::IotaDID;
+use identity::iota_core::IotaDID;
 use rocket::http::Status;
 use rocket::State;
 use rocket::{post, serde::json::Json};

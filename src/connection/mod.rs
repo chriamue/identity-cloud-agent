@@ -2,7 +2,7 @@ use crate::config::Config;
 use crate::didcomm::DidComm;
 use crate::wallet::get_did_endpoint;
 use crate::wallet::Wallet;
-use identity::iota::IotaDID;
+use identity::iota_core::IotaDID;
 use rocket::http::Status;
 use rocket::State;
 use rocket::{delete, get, post, serde::json::Json};
@@ -58,7 +58,7 @@ pub struct TerminationResponse {
 pub async fn post_create_invitation(wallet: &State<Wallet>) -> Json<Invitation> {
     let lock = wallet.account.lock().await;
     let did: &IotaDID = lock.did();
-    let endpoint = get_did_endpoint(did.to_string()).as_str().to_string();
+    let endpoint = get_did_endpoint(did.to_string()).await.as_str().to_string();
     let invitation: Invitation = build_issue_vc_invitation(endpoint);
     Json(invitation)
 }

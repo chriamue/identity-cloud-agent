@@ -1,12 +1,12 @@
-use identity::did::resolution;
-use identity::did::resolution::InputMetadata;
-use identity::iota::ClientMap;
+use identity::iota::ResolvedIotaDocument;
+use identity::iota::Resolver;
+use identity::iota_core::IotaDID;
 use rocket::{get, serde::json::Json};
 use rocket_okapi::okapi::schemars;
 use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
-use std::thread;
+use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct EndpointResponse {
@@ -15,21 +15,13 @@ pub struct EndpointResponse {
 
 #[openapi(tag = "ledger")]
 #[get("/ledger/did-endpoint?<did>")]
-pub fn get_did_endpoint(did: String) -> Json<EndpointResponse> {
-    let client: ClientMap = ClientMap::new();
-    let input: InputMetadata = Default::default();
+pub async fn get_did_endpoint(did: String) -> Json<EndpointResponse> {
+    let did = IotaDID::from_str(&did).unwrap();
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let resolver: Resolver = Resolver::new().await.unwrap();
+    let resolved_did_document: ResolvedIotaDocument = resolver.resolve(&did).await.unwrap();
 
-    let output = thread::spawn(move || {
-        let out = runtime.block_on(resolution::resolve(did.as_str(), input, &client));
-        out
-    })
-    .join()
-    .expect("Thread panicked")
-    .unwrap();
-
-    let document = output.document.unwrap();
+    let document = resolved_did_document.document;
     let services = document.service();
     let service = services.get(0).unwrap();
     Json(EndpointResponse {

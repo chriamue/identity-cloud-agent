@@ -5,13 +5,11 @@ use identity::core::Url;
 use identity::credential::Credential;
 use identity::credential::CredentialBuilder;
 use identity::credential::Subject;
-use identity::crypto::SignatureOptions;
-use identity::did::resolution;
-use identity::did::resolution::InputMetadata;
+use identity::crypto::ProofOptions;
 use identity::did::DID;
-use identity::iota::ClientMap;
-use identity::iota::IotaDID;
+use identity::iota_core::IotaDID;
 use identity::prelude::KeyPair;
+use identity::prelude::*;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::okapi::schemars;
@@ -19,7 +17,6 @@ use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::thread;
 
 fn example_type() -> &'static str {
     "UniversityDegreeCredential"
@@ -69,19 +66,6 @@ pub async fn post_send_offer(
     let did = iota_did.clone();
     std::mem::drop(account);
 
-    let client: ClientMap = ClientMap::new();
-    let input: InputMetadata = Default::default();
-    let runtime = tokio::runtime::Runtime::new().unwrap();
-
-    let output = thread::spawn(move || {
-        runtime.block_on(resolution::resolve(did.to_string(), input, &client))
-    })
-    .join()
-    .expect("Thread panicked")
-    .unwrap();
-
-    let document = output.document.unwrap();
-
     let issue_request = issue_request.into_inner();
     let conn_id = issue_request.connection_id;
 
@@ -89,7 +73,7 @@ pub async fn post_send_offer(
     let connection = connections.get(&conn_id).unwrap().clone();
     std::mem::drop(connections);
 
-    let subject_key: KeyPair = KeyPair::new_ed25519().unwrap();
+    let subject_key: KeyPair = KeyPair::new(KeyType::Ed25519).unwrap();
     let subject_did: IotaDID = IotaDID::new(subject_key.public().as_ref()).unwrap();
 
     let mut subject: Subject = Subject::from_json_value(issue_request.attributes).unwrap();
@@ -97,7 +81,7 @@ pub async fn post_send_offer(
 
     let mut credential: Credential = CredentialBuilder::default()
         .id(Url::parse("https://example.edu/credentials/3732").unwrap())
-        .issuer(Url::parse(document.id().as_str()).unwrap())
+        .issuer(Url::parse(did.as_str()).unwrap())
         .type_(issue_request.type_)
         .subject(subject)
         .build()
@@ -105,7 +89,7 @@ pub async fn post_send_offer(
 
     let account = wallet.account.lock().await;
     account
-        .sign("sign-0", &mut credential, SignatureOptions::default())
+        .sign("sign-0", &mut credential, ProofOptions::default())
         .await
         .unwrap();
 
