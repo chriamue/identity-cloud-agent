@@ -13,6 +13,7 @@ pub mod config;
 pub mod connection;
 pub mod credential;
 pub mod didcomm;
+pub mod keyutils;
 pub mod ledger;
 pub mod message;
 pub mod ping;
