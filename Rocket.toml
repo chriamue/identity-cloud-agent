@@ -5,6 +5,8 @@ stronghold_path = "account-stronghold.hodl.example"
 password = "changeme"
 endpoint = "http://localhost:8000"
 webhook_url = "http://localhost:8000"
+key_seed = "4bo9pLUEahsPqerR756HCQ4A9m3fS7WKwUsXru7CSDFd"
+# did = "did:key:z6MkpFZ86WuUpihn1mTRbpBCGE6YpCvsBYtZQYnd9jcuAUup"
 did = "did:iota:1ub3jPAoa4hvwMkEfmi8sjDBwzGiKHTYEd7jku3bhHL"
 
 [debug]

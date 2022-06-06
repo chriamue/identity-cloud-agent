@@ -4,15 +4,28 @@ use crate::message::MessageRequest;
 use crate::ping::{PingRequest, PingResponse};
 use crate::webhook::Webhook;
 use async_trait::async_trait;
+use didcomm_rs::{
+    crypto::{CryptoAlgorithm, SignatureAlgorithm},
+    Message,
+};
+use identity::did::MethodScope;
+use identity::iota::ResolvedIotaDocument;
+use identity::iota::Resolver;
+use identity::iota_core::{IotaVerificationMethod, IotaDID};
+use identity::prelude::{KeyPair, KeyType};
 use reqwest::RequestBuilder;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::openapi;
 use serde_json::{json, Value};
 use uuid::Uuid;
+use std::str::FromStr;
+
 pub mod client;
 #[cfg(test)]
 pub mod test_client;
+#[cfg(test)]
+pub mod tests;
 
 pub use client::Client;
 
@@ -82,61 +95,40 @@ pub async fn post_endpoint(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::connection::Connection;
-    use crate::ping::{PingRequest, PingResponse};
-    use crate::test_rocket;
-    use rocket::http::{ContentType, Status};
-    use rocket::local::blocking::Client;
-    use serde_json::{from_value, json, Value};
+pub async fn sign_and_encrypt(
+    message: &Message,
+    did_from: &String,
+    did_to: &String,
+    key: &KeyPair,
+) -> Result<Value, Box<dyn std::error::Error>> {
+    let sign_key = KeyPair::new(KeyType::X25519).unwrap();
 
-    #[test]
-    fn test_send_ping() {
-        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
-        let response = client.get("/connections").dispatch();
-        assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<Value>().unwrap();
-        let connections = response.as_array().unwrap();
-        assert_eq!(connections.len(), 0);
+    let resolver: Resolver = Resolver::new().await?;
 
-        let response = client.post("/out-of-band/create-invitation").dispatch();
-        assert_eq!(response.status(), Status::Ok);
-        let invitation: Value = response.into_json::<Value>().unwrap();
-        let invitation: String = serde_json::to_string(&invitation).unwrap();
+    let recipient_did = IotaDID::from_str(&did_to)?;
+    let recipient_document: ResolvedIotaDocument = resolver.resolve(&recipient_did).await?;
+    println!("{:?}", recipient_document);
+    let recipient_method: &IotaVerificationMethod = recipient_document
+        .document
+        .resolve_method("key-1", Some(MethodScope::VerificationMethod))
+        .unwrap();
+    let recipient_key: Vec<u8> = recipient_method.data().try_decode()?;
 
-        let response = client
-            .post("/out-of-band/receive-invitation")
-            .header(ContentType::JSON)
-            .body(invitation)
-            .dispatch();
-        assert_eq!(response.status(), Status::Ok);
-
-        let response = client.get("/connections").dispatch();
-        assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<Value>().unwrap();
-        let _connections: Vec<Connection> = from_value(response).unwrap();
-
-        let body: Value = json!( {
-            "response_requested": true
-        });
-
-        let ping_request: PingRequest = PingRequest {
-            type_: "https://didcomm.org/trust-ping/2.0/ping".to_string(),
-            id: "foo".to_string(),
-            from: "bar".to_string(),
-            body,
-        };
-        let ping_request: String = serde_json::to_string(&ping_request).unwrap();
-
-        let response = client
-            .post("/")
-            .header(ContentType::JSON)
-            .body(ping_request)
-            .dispatch();
-
-        assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<PingResponse>().unwrap();
-        assert_eq!(response.thid, "foo".to_string());
-    }
+    let response = message
+        .clone()
+        .from(did_from)
+        .to(&[did_to])
+        .as_jwe(&CryptoAlgorithm::XC20P, Some(recipient_key.to_vec()))
+        .kid(&hex::encode(sign_key.public().as_ref()));
+    
+    println!("{:?}", recipient_key);
+    let ready_to_send = response
+        .seal_signed(
+            key.private().as_ref(),
+            Some(vec![Some(recipient_key)]),
+            SignatureAlgorithm::EdDsa,
+            &[sign_key.private().as_ref(), sign_key.public().as_ref()].concat(),
+        )
+        .unwrap();
+    Ok(serde_json::from_str(&ready_to_send).unwrap())
 }

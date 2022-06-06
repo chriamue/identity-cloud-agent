@@ -1,7 +1,7 @@
 use didcomm_mediator::keybytes::KeyBytes;
 use identity::prelude::KeyPair;
 
-struct KP(KeyPair);
+pub struct KP(pub KeyPair);
 
 impl KeyBytes for KP {
     fn private_key(&self) -> Vec<u8> {
@@ -18,6 +18,7 @@ mod tests {
     use base58::FromBase58;
     use did_key::{generate, Ed25519KeyPair, KeyMaterial, X25519KeyPair};
     use didcomm_mediator::keybytes::KeyBytes;
+    use identity::prelude::*;
 
     #[test]
     fn test_private_key() {
