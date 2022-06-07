@@ -1,7 +1,8 @@
+use super::sign_and_encrypt;
 use crate::connection::Connection;
 use crate::ping::{PingRequest, PingResponse};
 use crate::test_rocket;
-use super::sign_and_encrypt;
+use base58::FromBase58;
 use didcomm_rs::Message;
 use identity::account::Account;
 use identity::account::AutoSave;
@@ -66,7 +67,6 @@ fn test_send_ping() {
 
 #[tokio::test]
 async fn test_message_encryption() -> Result<(), Box<dyn std::error::Error>> {
-    
     let keypair_ed = KeyPair::new(KeyType::Ed25519)?;
     let keypair_key_exchange = KeyPair::new(KeyType::X25519)?;
 
@@ -98,13 +98,30 @@ async fn test_message_encryption() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let did = account.did().to_string();
-
-    let did_to = "did:iota:1ub3jPAoa4hvwMkEfmi8sjDBwzGiKHTYEd7jku3bhHL".to_string();
+    let did_to = "did:iota:HcFFrR72GJq2hXuwbz2UwE7wkDE2VRkX2NwHeSVroeUH".to_string();
 
     let message = Message::new();
-    let message = sign_and_encrypt(&message, &did, &did_to, &keypair_ed).await.unwrap();
+    let message = serde_json::to_string(
+        &sign_and_encrypt(&message, &did, &did_to, &keypair_key_exchange)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
 
     println!("{:?}", message);
+
+    let seed = "CLKmgQ7NbRw3MpGu47TiSjQknGf2oBPnW9nFygzBkh9h";
+    let private = seed.from_base58().unwrap();
+    let receiver_keypair_ex =
+        KeyPair::try_from_private_key_bytes(KeyType::X25519, &private).unwrap();
+
+    let received = Message::receive(
+        &message,
+        Some(&receiver_keypair_ex.private().as_ref()),
+        Some(keypair_key_exchange.public().as_ref().to_vec()),
+        None,
+    );
+    received.unwrap();
 
     Ok(())
 }

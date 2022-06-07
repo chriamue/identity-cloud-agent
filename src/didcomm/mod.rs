@@ -11,15 +11,15 @@ use didcomm_rs::{
 use identity::did::MethodScope;
 use identity::iota::ResolvedIotaDocument;
 use identity::iota::Resolver;
-use identity::iota_core::{IotaVerificationMethod, IotaDID};
+use identity::iota_core::{IotaDID, IotaVerificationMethod};
 use identity::prelude::{KeyPair, KeyType};
 use reqwest::RequestBuilder;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::openapi;
 use serde_json::{json, Value};
-use uuid::Uuid;
 use std::str::FromStr;
+use uuid::Uuid;
 
 pub mod client;
 #[cfg(test)]
@@ -101,16 +101,15 @@ pub async fn sign_and_encrypt(
     did_to: &String,
     key: &KeyPair,
 ) -> Result<Value, Box<dyn std::error::Error>> {
-    let sign_key = KeyPair::new(KeyType::X25519).unwrap();
+    let sign_key = KeyPair::new(KeyType::Ed25519).unwrap();
 
     let resolver: Resolver = Resolver::new().await?;
 
-    let recipient_did = IotaDID::from_str(&did_to)?;
+    let recipient_did = IotaDID::from_str(did_to)?;
     let recipient_document: ResolvedIotaDocument = resolver.resolve(&recipient_did).await?;
-    println!("{:?}", recipient_document);
     let recipient_method: &IotaVerificationMethod = recipient_document
         .document
-        .resolve_method("key-1", Some(MethodScope::VerificationMethod))
+        .resolve_method("kex-0", Some(MethodScope::VerificationMethod))
         .unwrap();
     let recipient_key: Vec<u8> = recipient_method.data().try_decode()?;
 
@@ -120,8 +119,7 @@ pub async fn sign_and_encrypt(
         .to(&[did_to])
         .as_jwe(&CryptoAlgorithm::XC20P, Some(recipient_key.to_vec()))
         .kid(&hex::encode(sign_key.public().as_ref()));
-    
-    println!("{:?}", recipient_key);
+
     let ready_to_send = response
         .seal_signed(
             key.private().as_ref(),

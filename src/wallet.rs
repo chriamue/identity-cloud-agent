@@ -1,3 +1,4 @@
+use base58::ToBase58;
 use identity::account::Account;
 use identity::account::AutoSave;
 use identity::account::IdentitySetup;
@@ -8,6 +9,7 @@ use identity::core::Url;
 use identity::iota::ResolvedIotaDocument;
 use identity::iota::Resolver;
 use identity::iota_core::IotaDID;
+use identity::prelude::*;
 use rocket::response::status::NotFound;
 use rocket::State;
 use rocket::{get, post, serde::json::Json};
@@ -60,10 +62,33 @@ impl Wallet {
                     .await
                     .unwrap();
 
+                let x_keypair = KeyPair::new(KeyType::X25519).unwrap();
+
+                println!(
+                    "private x key: {}",
+                    x_keypair.private().as_ref().to_base58()
+                );
+
                 account
                     .update_identity()
                     .create_method()
-                    .content(MethodContent::GenerateEd25519)
+                    .content(MethodContent::PrivateX25519(x_keypair.private().clone()))
+                    .fragment("kex-0")
+                    .apply()
+                    .await
+                    .unwrap();
+
+                let ed_keypair = KeyPair::new(KeyType::Ed25519).unwrap();
+
+                println!(
+                    "private sign key: {}",
+                    ed_keypair.private().as_ref().to_base58()
+                );
+
+                account
+                    .update_identity()
+                    .create_method()
+                    .content(MethodContent::PrivateEd25519(ed_keypair.private().clone()))
                     .fragment("key-1")
                     .apply()
                     .await
@@ -136,7 +161,7 @@ pub async fn get_did_endpoint(did: String) -> Json<String> {
     let services = document.service();
     let service = services.get(0).unwrap();
     let endpoint = service.service_endpoint().to_string();
-    let endpoint = endpoint.replace("\"", "");
+    let endpoint = endpoint.replace('\"', "");
     Json(endpoint)
 }
 
@@ -152,7 +177,7 @@ pub async fn post_did_endpoint(
         .create_service()
         .fragment("endpoint")
         .type_("Endpoint")
-        .endpoint(Url::parse(post_data.endpoint.to_string()).unwrap())
+        .endpoint(Url::parse(&post_data.endpoint).unwrap())
         .apply()
         .await
         .unwrap();
