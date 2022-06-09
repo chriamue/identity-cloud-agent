@@ -1,4 +1,4 @@
-use super::sign_and_encrypt;
+use super::{receive, sign_and_encrypt};
 use crate::connection::Connection;
 use crate::ping::{PingRequest, PingResponse};
 use crate::test_rocket;
@@ -67,8 +67,15 @@ fn test_send_ping() {
 
 #[tokio::test]
 async fn test_message_encryption() -> Result<(), Box<dyn std::error::Error>> {
+    let seed = "CLKmgQ7NbRw3MpGu47TiSjQknGf2oBPnW9nFygzBkh9h";
+    let private = seed.from_base58().unwrap();
+
     let keypair_ed = KeyPair::new(KeyType::Ed25519)?;
     let keypair_key_exchange = KeyPair::new(KeyType::X25519)?;
+
+    let sender_keypair_ex = KeyPair::try_from_private_key_bytes(KeyType::X25519, &private).unwrap();
+    let receiver_keypair_ex =
+        KeyPair::try_from_private_key_bytes(KeyType::X25519, &private).unwrap();
 
     let mut account: Account = Account::builder()
         .autosave(AutoSave::Never)
@@ -97,12 +104,12 @@ async fn test_message_encryption() -> Result<(), Box<dyn std::error::Error>> {
         .apply()
         .await?;
 
-    let did = account.did().to_string();
+    let did_from = "did:iota:HcFFrR72GJq2hXuwbz2UwE7wkDE2VRkX2NwHeSVroeUH".to_string();
     let did_to = "did:iota:HcFFrR72GJq2hXuwbz2UwE7wkDE2VRkX2NwHeSVroeUH".to_string();
 
     let message = Message::new();
     let message = serde_json::to_string(
-        &sign_and_encrypt(&message, &did, &did_to, &keypair_key_exchange)
+        &sign_and_encrypt(&message, &did_from, &did_to, &sender_keypair_ex)
             .await
             .unwrap(),
     )
@@ -110,18 +117,62 @@ async fn test_message_encryption() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{:?}", message);
 
+    let received = receive(&message, &receiver_keypair_ex.private().as_ref(), None).await;
+    received.unwrap();
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_did_not_on_ledger_on_message_encryption() -> Result<(), Box<dyn std::error::Error>> {
     let seed = "CLKmgQ7NbRw3MpGu47TiSjQknGf2oBPnW9nFygzBkh9h";
     let private = seed.from_base58().unwrap();
+
+    let keypair_ed = KeyPair::new(KeyType::Ed25519)?;
+    let sender_keypair_ex = KeyPair::new(KeyType::X25519)?;
+
     let receiver_keypair_ex =
         KeyPair::try_from_private_key_bytes(KeyType::X25519, &private).unwrap();
 
-    let received = Message::receive(
-        &message,
-        Some(&receiver_keypair_ex.private().as_ref()),
-        Some(keypair_key_exchange.public().as_ref().to_vec()),
-        None,
-    );
-    received.unwrap();
+    let mut account: Account = Account::builder()
+        .autosave(AutoSave::Never)
+        .autopublish(false)
+        .storage(MemStore::new())
+        .create_identity(IdentitySetup::default())
+        .await?;
 
+    account
+        .update_identity()
+        .create_method()
+        .fragment("key-0")
+        .content(MethodContent::PrivateEd25519(
+            keypair_ed.private().to_owned(),
+        ))
+        .apply()
+        .await?;
+
+    account
+        .update_identity()
+        .create_method()
+        .fragment("kex-0")
+        .content(MethodContent::PrivateX25519(
+            sender_keypair_ex.private().to_owned(),
+        ))
+        .apply()
+        .await?;
+
+    let did_from = account.did().to_string();
+    let did_to = "did:iota:HcFFrR72GJq2hXuwbz2UwE7wkDE2VRkX2NwHeSVroeUH".to_string();
+
+    let message = Message::new();
+    let message = serde_json::to_string(
+        &sign_and_encrypt(&message, &did_from, &did_to, &sender_keypair_ex)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+
+    let received = receive(&message, &receiver_keypair_ex.private().as_ref(), None).await;
+    assert!(received.is_err());
     Ok(())
 }

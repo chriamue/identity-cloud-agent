@@ -4,6 +4,7 @@ use crate::message::MessageRequest;
 use crate::ping::{PingRequest, PingResponse};
 use crate::webhook::Webhook;
 use async_trait::async_trait;
+use didcomm_rs::Jwe;
 use didcomm_rs::{
     crypto::{CryptoAlgorithm, SignatureAlgorithm},
     Message,
@@ -129,4 +130,40 @@ pub async fn sign_and_encrypt(
         )
         .unwrap();
     Ok(serde_json::from_str(&ready_to_send).unwrap())
+}
+
+pub async fn receive(
+    message: &String,
+    encryption_recipient_private_key: &[u8],
+    encryption_sender_public_key: Option<Vec<u8>>,
+) -> Result<Message, didcomm_rs::Error> {
+    let sender_public_key = match &encryption_sender_public_key {
+        Some(value) => value.to_vec(),
+        None => {
+            let jwe: Jwe = serde_json::from_str(message)?;
+            let skid = &jwe
+                .get_skid()
+                .ok_or_else(|| didcomm_rs::Error::Generic("skid missing".to_string()))
+                .unwrap();
+
+            let resolver: Resolver = Resolver::new().await.unwrap();
+            let sender_did = IotaDID::from_str(skid).unwrap();
+            let sender_document = match resolver.resolve(&sender_did).await {
+                Ok(did) => Ok(did),
+                Err(_) => Err(didcomm_rs::Error::DidResolveFailed),
+            }?;
+            let sender_method = sender_document
+                .document
+                .resolve_method("kex-0", Some(MethodScope::VerificationMethod))
+                .ok_or(didcomm_rs::Error::DidResolveFailed);
+            sender_method?.data().try_decode().unwrap()
+        }
+    };
+
+    Message::receive(
+        &message,
+        Some(&encryption_recipient_private_key),
+        Some(sender_public_key),
+        None,
+    )
 }
