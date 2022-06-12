@@ -41,7 +41,7 @@ mod tests {
     fn test_get_endpoint() {
         let rocket = test_rocket();
         let config: &State<Config> = State::get(&rocket).expect("managed `ConfigState`");
-        let did = config.did.to_string();
+        let did = config.did_iota.as_ref().unwrap().to_string();
         let client = Client::tracked(rocket).expect("valid rocket instance");
         let response = client
             .get(format!("/ledger/did-endpoint?did={}", did))

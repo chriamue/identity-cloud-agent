@@ -14,6 +14,7 @@ use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use std::str::FromStr;
 
 fn example_connection_id() -> &'static str {
     "2fecc993-b92c-4152-8c81-35adde124382"
@@ -38,10 +39,8 @@ pub async fn post_send_proposal(
     credentials: &State<Credentials>,
     proof_request: Json<ProofRequest>,
 ) -> Json<Value> {
-    let account = wallet.account.lock().await;
-    let iota_did: &IotaDID = account.did();
+    let iota_did: IotaDID = IotaDID::from_str(&wallet.did_iota().unwrap()).unwrap();
     let did = iota_did.clone();
-    std::mem::drop(account);
 
     let proof_request = proof_request.into_inner();
 

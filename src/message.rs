@@ -9,6 +9,7 @@ use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::str::FromStr;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -28,8 +29,7 @@ pub async fn post_send_message(
     conn_id: String,
     payload: Json<Value>,
 ) -> Status {
-    let lock = wallet.account.lock().await;
-    let did: &IotaDID = lock.did();
+    let did: IotaDID = IotaDID::from_str(&wallet.did_iota().unwrap()).unwrap();
 
     let lock = connections.connections.lock().await;
     let connection = lock.get(&conn_id).unwrap().clone();

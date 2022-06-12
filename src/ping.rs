@@ -1,15 +1,16 @@
 use crate::connection::Connections;
-use crate::wallet::Wallet;
-use identity::iota_core::IotaDID;
-
+use crate::Wallet;
+use did_key::KeyMaterial;
+use didcomm_mediator::message::{add_return_route_all_header, receive, sign_and_encrypt};
+use didcomm_mediator::protocols::trustping::TrustPingResponseBuilder;
+use rocket::http::Status;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::okapi::schemars;
 use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use uuid::Uuid;
+use serde_json::Value;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PingRequest {
@@ -34,34 +35,42 @@ pub async fn post_send_ping(
     wallet: &State<Wallet>,
     connections: &State<Connections>,
     conn_id: String,
-) -> Json<PingResponse> {
-    let lock = wallet.account.lock().await;
-    let did: &IotaDID = lock.did();
-
+) -> Result<Json<Value>, Status> {
     let lock = connections.connections.lock().await;
     let connection = lock.get(&conn_id).unwrap().clone();
 
-    let body: Value = json!( {
-        "response_requested": true
-    });
-
-    let ping_request: PingRequest = PingRequest {
-        type_: "https://didcomm.org/trust-ping/2.0/ping".to_string(),
-        id: Uuid::new_v4().to_string(),
-        from: did.to_string(),
-        body,
-    };
+    let mut message = TrustPingResponseBuilder::new().build_ping().unwrap();
+    message = add_return_route_all_header(message);
+    let did_from = wallet.did_iota().unwrap();
+    let did_to = connection.did;
+    let keypair = wallet.keypair();
+    let ping = sign_and_encrypt(&message, &did_from, &did_to, &keypair)
+        .await
+        .unwrap();
 
     let client = reqwest::Client::new();
     let res = client
         .post(connection.endpoint.to_string())
-        .json(&ping_request)
+        .json(&ping)
         .send()
         .await
         .unwrap();
-    let json = res.json();
-    let ping_response: PingResponse = json.await.unwrap();
-    Json(ping_response)
+    let json: Value = res.json().await.unwrap();
+    let body_str = serde_json::to_string(&json).unwrap();
+
+    let received = match receive(
+        &body_str,
+        Some(&wallet.keypair().private_key_bytes()),
+        None,
+        None,
+    )
+    .await
+    {
+        Ok(received) => received,
+        Err(_) => return Err(Status::BadRequest),
+    };
+    let received: Value = serde_json::to_value(&received).unwrap();
+    Ok(Json(received))
 }
 
 #[cfg(test)]

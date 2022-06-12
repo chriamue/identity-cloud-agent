@@ -1,19 +1,19 @@
 [default]
-ident = "identity-cloud-agent"
-
-stronghold_path = "account-stronghold.hodl.example"
-password = "changeme"
-endpoint = "http://localhost:8000"
+ident = "mediator"
+key_seed = "BHyHWQqKvvgbcGoXiGS33iUu1Q4KGKP4pJK11RNWzr8c"
+did_key = "did:key:z6LSgPAyaBFBaEDkUVdN68WRDVZJevc1nNi9G675oK1NsEXN"
+did_iota = "did:iota:As1FSRYahR2JYi3EyvWan43pLrnjGLkDffwQDcBf545G"
+wallet_path = "wallet.hold.example"
+wallet_password = "changeme"
 webhook_url = "http://localhost:8000"
-key_seed = "CLKmgQ7NbRw3MpGu47TiSjQknGf2oBPnW9nFygzBkh9h"
-sign_key_seed = "At8xLdhdBEPHkK9X9J6pyePZxD6KTMJuTCSFhnAfPpDn"
-# did = "did:key:z6MkpFZ86WuUpihn1mTRbpBCGE6YpCvsBYtZQYnd9jcuAUup"
-did = "did:iota:HcFFrR72GJq2hXuwbz2UwE7wkDE2VRkX2NwHeSVroeUH"
 
 [debug]
 port = 8000
 ext_hostname = "http://localhost:8000"
+ext_service = "http://localhost:8000"
 
 [release]
 address = "0.0.0.0"
 port = 8080
+ext_hostname = "http://localhost:8000"
+ext_service = "http://localhost:8000"

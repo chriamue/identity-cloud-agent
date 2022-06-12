@@ -1,7 +1,7 @@
-use crate::config::Config;
 use crate::didcomm::DidComm;
 use crate::wallet::get_did_endpoint;
-use crate::wallet::Wallet;
+use crate::Config;
+use crate::Wallet;
 use didcomm_mediator::protocols::didexchange::DidExchangeResponseBuilder;
 use didcomm_mediator::protocols::invitation::InvitationBuilder;
 use didcomm_mediator::service::Service;
@@ -17,6 +17,7 @@ use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -25,6 +26,7 @@ pub mod invitation;
 #[derive(Default, Debug, PartialEq, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct Connection {
     pub id: String,
+    pub did: String,
     pub endpoint: String,
 }
 
@@ -60,12 +62,11 @@ pub struct TerminationResponse {
 #[openapi(tag = "out-of-band")]
 #[post("/out-of-band/create-invitation")]
 pub async fn post_create_invitation(wallet: &State<Wallet>) -> Json<Value> {
-    let lock = wallet.account.lock().await;
-    let did: &IotaDID = lock.did();
+    let did: IotaDID = IotaDID::from_str(&wallet.did_iota().unwrap()).unwrap();
     let endpoint = get_did_endpoint(did.to_string()).await.as_str().to_string();
 
     let explorer: &ExplorerUrl = ExplorerUrl::mainnet();
-    let did_doc = explorer.resolver_url(did).unwrap();
+    let did_doc = explorer.resolver_url(&did).unwrap();
 
     let did_exchange = DidExchangeResponseBuilder::new()
         .did_doc(serde_json::to_value(&did_doc).unwrap())
@@ -104,8 +105,14 @@ pub async fn post_receive_invitation(
         .find(|(key, _)| *key == "services")
         .unwrap();
     let services: Vec<Service> = serde_json::from_str(services).unwrap();
+    let services = services
+        .iter()
+        .filter(|service| service.id.starts_with("did:iota"))
+        .cloned()
+        .collect::<Vec<Service>>();
 
     let endpoint: String = services.first().unwrap().service_endpoint.to_string();
+    let did: String = services.first().unwrap().id.replace("#didcomm", "");
 
     let client = reqwest::Client::new();
     match client
@@ -117,7 +124,7 @@ pub async fn post_receive_invitation(
         Ok(_) => (),
         Err(err) => error!("{:?}", err),
     };
-    let connection = Connection { id, endpoint };
+    let connection = Connection { id, endpoint, did };
     let mut lock = connections.connections.lock().await;
     lock.insert(connection.id.to_string(), connection);
 
@@ -148,7 +155,7 @@ pub async fn get_connection_endpoints(
     conn_id: String,
 ) -> Json<ConnectionEndpoints> {
     let lock = connections.connections.lock().await;
-    let endpoint = config.endpoint.to_string();
+    let endpoint = config.ext_service.to_string();
     let connection = lock.get(&conn_id).unwrap().clone();
     let their_endpoint = connection.endpoint;
     Json(ConnectionEndpoints {
