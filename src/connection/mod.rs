@@ -2,6 +2,11 @@ use crate::config::Config;
 use crate::didcomm::DidComm;
 use crate::wallet::get_did_endpoint;
 use crate::wallet::Wallet;
+use didcomm_mediator::protocols::didexchange::DidExchangeResponseBuilder;
+use didcomm_mediator::protocols::invitation::InvitationBuilder;
+use didcomm_mediator::service::Service;
+use didcomm_rs::Message;
+use identity::iota::ExplorerUrl;
 use identity::iota_core::IotaDID;
 use rocket::http::Status;
 use rocket::State;
@@ -16,7 +21,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 pub mod invitation;
-use invitation::{build_issue_vc_invitation, Invitation};
 
 #[derive(Default, Debug, PartialEq, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct Connection {
@@ -55,12 +59,31 @@ pub struct TerminationResponse {
 
 #[openapi(tag = "out-of-band")]
 #[post("/out-of-band/create-invitation")]
-pub async fn post_create_invitation(wallet: &State<Wallet>) -> Json<Invitation> {
+pub async fn post_create_invitation(wallet: &State<Wallet>) -> Json<Value> {
     let lock = wallet.account.lock().await;
     let did: &IotaDID = lock.did();
     let endpoint = get_did_endpoint(did.to_string()).await.as_str().to_string();
-    let invitation: Invitation = build_issue_vc_invitation(endpoint);
-    Json(invitation)
+
+    let explorer: &ExplorerUrl = ExplorerUrl::mainnet();
+    let did_doc = explorer.resolver_url(did).unwrap();
+
+    let did_exchange = DidExchangeResponseBuilder::new()
+        .did_doc(serde_json::to_value(&did_doc).unwrap())
+        .did(did.to_string())
+        .build_request()
+        .unwrap();
+
+    let services: Vec<Service> = vec![Service::new(did.to_string(), endpoint).await.unwrap()];
+    let invitation = InvitationBuilder::new()
+        .goal("to create a relationship".to_string())
+        .goal_code("aries.rel.build".to_string())
+        .services(services)
+        .attachments(vec![did_exchange])
+        .build()
+        .unwrap();
+
+    let response = serde_json::from_str(&invitation.as_raw_json().unwrap()).unwrap();
+    Json(response)
 }
 
 #[openapi(tag = "out-of-band")]
@@ -71,14 +94,18 @@ pub async fn post_create_invitation(wallet: &State<Wallet>) -> Json<Invitation> 
 )]
 pub async fn post_receive_invitation(
     connections: &State<Connections>,
-    invitation: Json<Invitation>,
-) -> Json<Invitation> {
-    let invitation: Invitation = invitation.into_inner();
-    let id = invitation.id.to_string();
-    let endpoint: String = invitation.attachments[0].data["json"]["service"]["serviceEndpoint"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    invitation: Json<Value>,
+) -> Json<Value> {
+    let invitation = invitation.into_inner();
+    let message: Message = serde_json::from_value(invitation.clone()).unwrap();
+    let id = message.get_didcomm_header().id.to_string();
+    let (_, services) = message
+        .get_application_params()
+        .find(|(key, _)| *key == "services")
+        .unwrap();
+    let services: Vec<Service> = serde_json::from_str(services).unwrap();
+
+    let endpoint: String = services.first().unwrap().service_endpoint.to_string();
 
     let client = reqwest::Client::new();
     match client

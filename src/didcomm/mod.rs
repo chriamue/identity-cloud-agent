@@ -161,8 +161,8 @@ pub async fn receive(
     };
 
     Message::receive(
-        &message,
-        Some(&encryption_recipient_private_key),
+        message,
+        Some(encryption_recipient_private_key),
         Some(sender_public_key),
         None,
     )
