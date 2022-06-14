@@ -18,6 +18,8 @@ use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::str::FromStr;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 fn example_type() -> &'static str {
     "UniversityDegreeCredential"
@@ -58,10 +60,11 @@ pub struct Issuance {
 #[openapi(tag = "issue-credential")]
 #[post("/issue-credential/send-offer", data = "<issue_request>")]
 pub async fn post_send_offer(
-    wallet: &State<Wallet>,
+    wallet: &State<Arc<Mutex<Wallet>>>,
     connections: &State<Connections>,
     issue_request: Json<IssueRequest>,
 ) -> Json<Value> {
+    let wallet = wallet.try_lock().unwrap();
     let iota_did: IotaDID = IotaDID::from_str(&wallet.did_iota().unwrap()).unwrap();
     let did = iota_did.clone();
 

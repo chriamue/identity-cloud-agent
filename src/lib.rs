@@ -6,7 +6,9 @@ use rocket::get;
 use rocket::response::Redirect;
 use rocket::{Build, Rocket};
 use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
+use std::sync::Arc;
 use std::thread;
+use tokio::sync::Mutex;
 
 pub mod configext;
 pub mod connection;
@@ -57,6 +59,7 @@ pub fn rocket(
     .join()
     .expect("Thread panicked");
     wallet.log();
+    let wallet = Arc::new(Mutex::new(wallet));
 
     rocket
         .mount(

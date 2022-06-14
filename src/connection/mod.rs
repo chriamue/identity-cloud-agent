@@ -61,7 +61,8 @@ pub struct TerminationResponse {
 
 #[openapi(tag = "out-of-band")]
 #[post("/out-of-band/create-invitation")]
-pub async fn post_create_invitation(wallet: &State<Wallet>) -> Json<Value> {
+pub async fn post_create_invitation(wallet: &State<Arc<Mutex<Wallet>>>) -> Json<Value> {
+    let wallet = wallet.try_lock().unwrap();
     let did: IotaDID = IotaDID::from_str(&wallet.did_iota().unwrap()).unwrap();
     let endpoint = get_did_endpoint(did.to_string()).await.as_str().to_string();
 

@@ -15,6 +15,8 @@ use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::str::FromStr;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 fn example_connection_id() -> &'static str {
     "2fecc993-b92c-4152-8c81-35adde124382"
@@ -35,10 +37,11 @@ pub struct ProofRequest {
 #[openapi(tag = "present-proof")]
 #[post("/present-proof/send-proposal", data = "<proof_request>")]
 pub async fn post_send_proposal(
-    wallet: &State<Wallet>,
+    wallet: &State<Arc<Mutex<Wallet>>>,
     credentials: &State<Credentials>,
     proof_request: Json<ProofRequest>,
 ) -> Json<Value> {
+    let wallet = wallet.try_lock().unwrap();
     let iota_did: IotaDID = IotaDID::from_str(&wallet.did_iota().unwrap()).unwrap();
     let did = iota_did.clone();
 

@@ -11,6 +11,8 @@ use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PingRequest {
@@ -32,10 +34,11 @@ pub struct PingResponse {
 #[openapi(tag = "trustping")]
 #[post("/connections/<conn_id>/send-ping")]
 pub async fn post_send_ping(
-    wallet: &State<Wallet>,
+    wallet: &State<Arc<Mutex<Wallet>>>,
     connections: &State<Connections>,
     conn_id: String,
 ) -> Result<Json<Value>, Status> {
+    let wallet = wallet.try_lock().unwrap();
     let lock = connections.connections.lock().await;
     let connection = lock.get(&conn_id).unwrap().clone();
 

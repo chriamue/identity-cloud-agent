@@ -10,6 +10,8 @@ use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::str::FromStr;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -24,11 +26,12 @@ pub struct MessageRequest {
 #[openapi(tag = "basicmessage")]
 #[post("/connections/<conn_id>/send-message", data = "<payload>")]
 pub async fn post_send_message(
-    wallet: &State<Wallet>,
+    wallet: &State<Arc<Mutex<Wallet>>>,
     connections: &State<Connections>,
     conn_id: String,
     payload: Json<Value>,
 ) -> Status {
+    let wallet = wallet.try_lock().unwrap();
     let did: IotaDID = IotaDID::from_str(&wallet.did_iota().unwrap()).unwrap();
 
     let lock = connections.connections.lock().await;
