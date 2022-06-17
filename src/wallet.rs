@@ -1,9 +1,9 @@
 pub use didcomm_mediator::wallet::Wallet;
-use identity::account::Result;
-use identity::core::Url;
-use identity::iota::ResolvedIotaDocument;
-use identity::iota::Resolver;
-use identity::iota_core::IotaDID;
+use identity_iota::account::Result;
+use identity_iota::client::ResolvedIotaDocument;
+use identity_iota::client::Resolver;
+use identity_iota::core::Url;
+use identity_iota::iota_core::IotaDID;
 use rocket::response::status::NotFound;
 use rocket::State;
 use rocket::{get, post, serde::json::Json};

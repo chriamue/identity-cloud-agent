@@ -1,5 +1,5 @@
-use identity::core::FromJson;
-use identity::credential::Schema;
+use identity_iota::core::FromJson;
+use identity_iota::credential::Schema;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::okapi::schemars;

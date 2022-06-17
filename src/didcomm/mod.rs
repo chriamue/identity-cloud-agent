@@ -9,11 +9,11 @@ use didcomm_rs::{
     crypto::{CryptoAlgorithm, SignatureAlgorithm},
     Message,
 };
-use identity::did::MethodScope;
-use identity::iota::ResolvedIotaDocument;
-use identity::iota::Resolver;
-use identity::iota_core::{IotaDID, IotaVerificationMethod};
-use identity::prelude::{KeyPair, KeyType};
+use identity_iota::client::ResolvedIotaDocument;
+use identity_iota::client::Resolver;
+use identity_iota::did::MethodScope;
+use identity_iota::iota_core::{IotaDID, IotaVerificationMethod};
+use identity_iota::prelude::{KeyPair, KeyType};
 use reqwest::RequestBuilder;
 use rocket::State;
 use rocket::{post, serde::json::Json};

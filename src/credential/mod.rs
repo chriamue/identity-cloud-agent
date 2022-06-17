@@ -1,4 +1,4 @@
-use identity::credential::Credential;
+use identity_iota::credential::Credential;
 use rocket::State;
 use rocket::{get, serde::json::Json};
 use rocket_okapi::openapi;

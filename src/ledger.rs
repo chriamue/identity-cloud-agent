@@ -1,6 +1,6 @@
-use identity::iota::ResolvedIotaDocument;
-use identity::iota::Resolver;
-use identity::iota_core::IotaDID;
+use identity_iota::client::ResolvedIotaDocument;
+use identity_iota::client::Resolver;
+use identity_iota::iota_core::IotaDID;
 use rocket::{get, serde::json::Json};
 use rocket_okapi::okapi::schemars;
 use rocket_okapi::okapi::schemars::JsonSchema;
