@@ -1,0 +1,12 @@
+version: "3.2"
+services:
+  identity-cloud-agent:
+    entrypoint: "/bin/identity_cloud_agent_bin"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ./Rocket.toml:/Rocket.toml
+      - ./wallet/:/wallet/
+    ports:
+     - "8080:8080"
