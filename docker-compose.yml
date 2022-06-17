@@ -10,3 +10,21 @@ services:
       - ./wallet/:/wallet/
     ports:
      - "8080:8080"
+
+
+  # Identity Cloud Agent 2 (only started with "docker compose --profile second-ica up")
+  ica2:
+    profiles:
+      - second-ica
+    image: ghcr.io/chriamue/identity-cloud-agent/identity-cloud-agent:latest
+    ports:
+     - "8090:8090"
+    volumes:
+      - ./ica2.Rocket.toml:/Rocket.toml
+      - ./wallet/:/wallet/
+    environment:
+      - ROCKET_WEBHOOK_URL="http://localhost:8090"
+      - ROCKET_IDENT=ica2
+      - ROCKET_PORT=8090
+      - ROCKET_EXT_HOSTNAME="http://ica2:8090"
+      - ROCKET_EXT_SERVICE="http://ica2:8090"

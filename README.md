@@ -14,16 +14,17 @@ Configure the config file. Set the stronghold_path.
 # Rocket.toml
 [default]
 ident = "identity-cloud-agent"
-
-stronghold_path = "account-stronghold.hodl"
-password = "changeme"
-endpoint = "http://localhost:8000"
+key_seed = "BHyHWQqKvvgbcGoXiGS33iUu1Q4KGKP4pJK11RNWzr8c"
+did_key = "did:key:z6LSgPAyaBFBaEDkUVdN68WRDVZJevc1nNi9G675oK1NsEXN"
+did_iota = "did:iota:As1FSRYahR2JYi3EyvWan43pLrnjGLkDffwQDcBf545G"
+wallet_path = "wallet.hold.example"
+wallet_password = "changeme"
 webhook_url = "http://localhost:8000"
-did = "did:iota:6HnYPKwSAzf3yRLtkWN7uAUHEf8cCAfdyRSK1EJXSaUU"
 
 [debug]
 port = 8000
 ext_hostname = "http://localhost:8000"
+ext_service = "http://localhost:8000"
 
 [release]
 address = "0.0.0.0"
@@ -41,3 +42,47 @@ Stop the agent and change the did in the config file.
 Start the agent again.
 
 Visit http://localhost:8000 which redirects to the swagger-ui.
+
+## docker
+
+Run two ica using docker compose command
+
+```sh
+docker compose --profile second-ica up
+```
+
+Visit first ica on http://localhost:8080 and second on http://localhost:8090 .
+
+## example did doc
+
+https://explorer.iota.org/mainnet/identity-resolver/did:iota:6Xbu1cFwkhL6WgmAyLNoWmYqS5b17nrVefUtLn1dHhbf
+
+```json
+{
+    "id": "did:iota:6Xbu1cFwkhL6WgmAyLNoWmYqS5b17nrVefUtLn1dHhbf",
+    "verificationMethod": [
+        {
+            "id": "did:iota:6Xbu1cFwkhL6WgmAyLNoWmYqS5b17nrVefUtLn1dHhbf#kex-0",
+            "controller": "did:iota:6Xbu1cFwkhL6WgmAyLNoWmYqS5b17nrVefUtLn1dHhbf",
+            "type": "X25519KeyAgreementKey2019",
+            "publicKeyMultibase": "z2vnrjirdCJdt3zSqSs1v4yUHxQathWPcWkA7ESBntCpv"
+        }
+    ],
+    "capabilityInvocation": [
+        {
+            "id": "did:iota:6Xbu1cFwkhL6WgmAyLNoWmYqS5b17nrVefUtLn1dHhbf#sign-0",
+            "controller": "did:iota:6Xbu1cFwkhL6WgmAyLNoWmYqS5b17nrVefUtLn1dHhbf",
+            "type": "Ed25519VerificationKey2018",
+            "publicKeyMultibase": "zCnWRX8zfqRmuTci7Hz3QWn2HxQUNkpKDmR3L2FfVueut"
+        }
+    ],
+    "service": [
+        {
+            "id": "did:iota:6Xbu1cFwkhL6WgmAyLNoWmYqS5b17nrVefUtLn1dHhbf#endpoint",
+            "type": "Endpoint",
+            "serviceEndpoint": "http://ica2:8090/"
+        }
+    ]
+}
+
+```
