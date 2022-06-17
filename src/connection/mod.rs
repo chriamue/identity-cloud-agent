@@ -59,6 +59,7 @@ pub struct TerminationResponse {
     pub body: Value,
 }
 
+/// # Create a new connection invitation.
 #[openapi(tag = "out-of-band")]
 #[post("/out-of-band/create-invitation")]
 pub async fn post_create_invitation(wallet: &State<Arc<Mutex<Wallet>>>) -> Json<Value> {
@@ -88,6 +89,7 @@ pub async fn post_create_invitation(wallet: &State<Arc<Mutex<Wallet>>>) -> Json<
     Json(response)
 }
 
+/// # Receive a new connection invitation.
 #[openapi(tag = "out-of-band")]
 #[post(
     "/out-of-band/receive-invitation",

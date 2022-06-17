@@ -75,6 +75,7 @@ pub fn rocket(
                 credential::issue::post_send_offer,
                 credential::get_all_credentials,
                 didcomm::post_endpoint,
+                ledger::get_did_verkey,
                 ledger::get_did_endpoint,
                 message::post_send_message,
                 ping::post_send_ping,
