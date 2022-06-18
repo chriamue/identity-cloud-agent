@@ -1,6 +1,5 @@
-use crate::connection::{ConnectionEvent, ConnectionEvents};
+use crate::connection::ConnectionEvents;
 use async_trait::async_trait;
-use futures::executor::ThreadPool;
 use reqwest::RequestBuilder;
 use rocket::State;
 use rocket::{post, serde::json::Json};
@@ -9,10 +8,8 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use {
-    futures::{executor::block_on, SinkExt, StreamExt},
-    pharos::*,
-};
+use tokio::task::JoinHandle;
+use {futures::StreamExt, pharos::*};
 
 pub mod client;
 mod endpoint;
@@ -32,14 +29,14 @@ pub trait Webhook: core::fmt::Debug + Send + Sync {
 #[derive(Debug, Clone)]
 pub struct WebhookPool {
     pub webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>>,
-    pub connection_pool: Option<ThreadPool>,
+    pub connection_task: Option<Arc<JoinHandle<()>>>,
 }
 
 impl Default for WebhookPool {
     fn default() -> Self {
         WebhookPool {
             webhooks: Arc::new(Mutex::new(HashMap::new())),
-            connection_pool: None,
+            connection_task: None,
         }
     }
 }
@@ -69,8 +66,6 @@ impl WebhookPool {
         &mut self,
         connection_events: Arc<Mutex<ConnectionEvents>>,
     ) {
-        let pool = ThreadPool::new().unwrap();
-
         let mut events = {
             let mut connection_events = connection_events.try_lock().unwrap();
             connection_events
@@ -82,17 +77,21 @@ impl WebhookPool {
             self.webhooks.clone();
         let future = async move {
             while let Some(event) = events.next().await {
-                Self::post_webhooks(
+                match Self::post_webhooks(
                     "connection",
                     &serde_json::to_value(&event).unwrap(),
                     webhooks.clone(),
                 )
                 .await
-                .unwrap();
+                {
+                    Ok(_) => (),
+                    Err(err) => println!("{:?}", err),
+                }
             }
+            println!("end async future events");
         };
-        pool.spawn_ok(future);
-        self.connection_pool = Some(pool);
+        let task = tokio::task::spawn(future);
+        self.connection_task = Some(Arc::new(task));
     }
 }
 
@@ -103,7 +102,7 @@ pub async fn get_all_webhooks(webhook_pool: &State<WebhookPool>) -> Json<Vec<Web
     let webhooks: Vec<WebhookEndpoint> = {
         let mut webhooks = Vec::new();
         let map = webhook_pool.webhooks.try_lock().unwrap();
-        for (_key, value) in &*map {
+        for value in (*map).values() {
             let (webhook_endpoint, _webhook) = value;
             webhooks.push(webhook_endpoint.clone());
         }

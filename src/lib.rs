@@ -64,7 +64,7 @@ pub fn rocket(
 
     let connection_events: Arc<Mutex<ConnectionEvents>> =
         Arc::new(Mutex::new(ConnectionEvents::new()));
-    let mut webhook_pool = webhook_pool.clone();
+    let mut webhook_pool = webhook_pool;
 
     futures::executor::block_on(webhook_pool.spawn_connection_events(connection_events.clone()));
     rocket
