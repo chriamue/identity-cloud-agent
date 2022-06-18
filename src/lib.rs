@@ -9,6 +9,7 @@ use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 use std::sync::Arc;
 use std::thread;
 use tokio::sync::Mutex;
+use webhook::WebhookPool;
 
 pub mod configext;
 pub mod connection;
@@ -42,7 +43,7 @@ fn index() -> Redirect {
 pub fn rocket(
     rocket: Rocket<Build>,
     config: Config,
-    webhook: Box<dyn webhook::Webhook>,
+    webhook_pool: WebhookPool,
     didcomm: Box<dyn didcomm::DidComm>,
 ) -> Rocket<Build> {
     let connections: Connections = Connections::default();
@@ -107,7 +108,7 @@ pub fn rocket(
         .manage(connections)
         .manage(credentials)
         .manage(schemas)
-        .manage(webhook)
+        .manage(webhook_pool)
         .manage(didcomm)
 }
 
@@ -116,11 +117,6 @@ pub fn test_rocket() -> Rocket<Build> {
     let rocket = rocket::build();
     let figment = rocket.figment();
     let config: Config = figment.extract().expect("config");
-    let config_ext: ConfigExt = figment.extract().expect("config");
-
-    let webhook = Box::new(webhook::test_client::TestClient::new(
-        config_ext.webhook_url.unwrap().to_string(),
-    )) as Box<dyn webhook::Webhook>;
     let didcomm = Box::new(didcomm::test_client::TestClient::new()) as Box<dyn didcomm::DidComm>;
-    self::rocket(rocket, config, webhook, didcomm)
+    self::rocket(rocket, config, WebhookPool::default(), didcomm)
 }

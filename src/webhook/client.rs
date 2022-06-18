@@ -2,6 +2,7 @@ use super::Webhook;
 use reqwest::RequestBuilder;
 use serde_json::Value;
 
+#[derive(Debug)]
 pub struct Client {
     url: String,
 }

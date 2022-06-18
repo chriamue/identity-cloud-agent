@@ -20,15 +20,16 @@ fn example_x_api_key() -> &'static str {
 }
 
 fn example_registered_event() -> Value {
-    json!(vec![RegisteredEvent::ALL])
+    json!(vec![RegisteredEvent::All])
 }
 
-#[derive(Serialize, Deserialize, JsonSchema, Clone)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub enum RegisteredEvent {
-    ALL,
+    #[serde(rename = "ALL")]
+    All,
 }
 
-#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct WebhookEndpoint {
     #[schemars(example = "example_id")]
     pub id: Option<String>,
@@ -52,7 +53,7 @@ impl Default for WebhookEndpoint {
             url: example_url().to_string(),
             authorization: Some(example_authorization().to_string()),
             x_api_key: Some(example_x_api_key().to_string()),
-            registered_event: vec![RegisteredEvent::ALL],
+            registered_event: vec![RegisteredEvent::All],
         }
     }
 }
@@ -67,7 +68,7 @@ impl WebhookEndpoint {
             url: webhook_endpoint.url.to_string(),
             authorization: webhook_endpoint.authorization.clone(),
             x_api_key: webhook_endpoint.x_api_key.clone(),
-            registered_event: webhook_endpoint.registered_event.iter().cloned().collect(),
+            registered_event: webhook_endpoint.registered_event.to_vec(),
         }
     }
 }

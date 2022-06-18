@@ -2,7 +2,11 @@
 extern crate rocket;
 use base58::{FromBase58, ToBase58};
 use did_key::{generate, DIDCore, KeyMaterial, X25519KeyPair};
-use identity_cloud_agent::{didcomm, webhook, Config, ConfigExt};
+use identity_cloud_agent::{
+    didcomm,
+    webhook::{self, WebhookEndpoint, WebhookPool},
+    Config, ConfigExt,
+};
 
 #[launch]
 pub fn rocket() -> _ {
@@ -23,10 +27,21 @@ pub fn rocket() -> _ {
     };
     config.did_key = Some(key.get_did_document(Default::default()).id);
 
-    let webhook = Box::new(webhook::Client::new(
+    let webhook_client = Box::new(webhook::Client::new(
         config_ext.webhook_url.as_ref().unwrap().to_string(),
     )) as Box<dyn webhook::Webhook>;
+
+    let webhook_endpoint = WebhookEndpoint {
+        url: config_ext.webhook_url.as_ref().unwrap().to_string(),
+        ..Default::default()
+    };
+
+    let webhook_pool = WebhookPool::default();
+    webhook_pool.webhooks.try_lock().unwrap().insert(
+        webhook_endpoint.id.as_ref().unwrap().to_string(),
+        (webhook_endpoint, webhook_client),
+    );
     let didcomm = Box::new(didcomm::Client::new()) as Box<dyn didcomm::DidComm>;
 
-    identity_cloud_agent::rocket(rocket, config, webhook, didcomm)
+    identity_cloud_agent::rocket(rocket, config, webhook_pool, didcomm)
 }

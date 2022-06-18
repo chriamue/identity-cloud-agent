@@ -2,7 +2,7 @@ use crate::connection::{invitation::Invitation, Connections, Termination, Termin
 use crate::credential::{issue::Issuance, Credentials};
 use crate::message::MessageRequest;
 use crate::ping::{PingRequest, PingResponse};
-use crate::webhook::Webhook;
+use crate::webhook::WebhookPool;
 use async_trait::async_trait;
 use didcomm_rs::Jwe;
 use didcomm_rs::{
@@ -40,7 +40,7 @@ pub trait DidComm: Send + Sync {
 #[openapi(tag = "didcomm")]
 #[post("/", format = "application/json", data = "<data>")]
 pub async fn post_endpoint(
-    webhook: &State<Box<dyn Webhook>>,
+    webhook_pool: &State<WebhookPool>,
     connections: &State<Connections>,
     credentials: &State<Credentials>,
     data: Json<Value>,
@@ -64,7 +64,7 @@ pub async fn post_endpoint(
             let message_request: MessageRequest =
                 serde_json::from_value(data.into_inner()).unwrap();
             info!("message: {:?}", message_request.payload);
-            webhook
+            webhook_pool
                 .post("message", &message_request.payload)
                 .await
                 .unwrap();

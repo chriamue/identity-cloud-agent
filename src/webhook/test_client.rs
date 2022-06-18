@@ -5,6 +5,7 @@ use reqwest::{Response, ResponseBuilderExt};
 use serde_json::Value;
 use url::Url;
 
+#[derive(Debug)]
 pub struct TestClient {
     url: String,
     response: Value,
