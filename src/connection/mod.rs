@@ -21,7 +21,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+pub mod events;
 pub mod invitation;
+
+pub use events::ConnectionEvent;
+pub use events::ConnectionEvents;
 
 #[derive(Default, Debug, PartialEq, Serialize, Deserialize, Clone, JsonSchema)]
 pub struct Connection {
@@ -98,6 +102,7 @@ pub async fn post_create_invitation(wallet: &State<Arc<Mutex<Wallet>>>) -> Json<
 )]
 pub async fn post_receive_invitation(
     connections: &State<Connections>,
+    connection_events: &State<Arc<Mutex<ConnectionEvents>>>,
     invitation: Json<Value>,
 ) -> Json<Value> {
     let invitation = invitation.into_inner();
@@ -128,9 +133,14 @@ pub async fn post_receive_invitation(
         Err(err) => error!("{:?}", err),
     };
     let connection = Connection { id, endpoint, did };
+    let connection_id = connection.id.to_string();
     let mut lock = connections.connections.lock().await;
-    lock.insert(connection.id.to_string(), connection);
-
+    lock.insert(connection_id.to_string(), connection);
+    connection_events
+        .try_lock()
+        .unwrap()
+        .send(ConnectionEvent::Created(connection_id))
+        .await;
     Json(invitation)
 }
 

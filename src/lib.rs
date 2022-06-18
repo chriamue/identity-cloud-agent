@@ -28,7 +28,7 @@ pub mod topic;
 pub mod wallet;
 pub mod webhook;
 pub use configext::ConfigExt;
-use connection::Connections;
+use connection::{ConnectionEvents, Connections};
 use credential::Credentials;
 pub use didcomm::DidComm;
 use schema::Schemas;
@@ -62,6 +62,11 @@ pub fn rocket(
     wallet.log();
     let wallet = Arc::new(Mutex::new(wallet));
 
+    let connection_events: Arc<Mutex<ConnectionEvents>> =
+        Arc::new(Mutex::new(ConnectionEvents::new()));
+    let mut webhook_pool = webhook_pool.clone();
+
+    futures::executor::block_on(webhook_pool.spawn_connection_events(connection_events.clone()));
     rocket
         .mount(
             "/",
@@ -110,6 +115,7 @@ pub fn rocket(
         .manage(schemas)
         .manage(webhook_pool)
         .manage(didcomm)
+        .manage(connection_events)
 }
 
 #[cfg(test)]

@@ -1,4 +1,6 @@
+use crate::connection::{ConnectionEvent, ConnectionEvents};
 use async_trait::async_trait;
+use futures::executor::ThreadPool;
 use reqwest::RequestBuilder;
 use rocket::State;
 use rocket::{post, serde::json::Json};
@@ -7,6 +9,10 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use {
+    futures::{executor::block_on, SinkExt, StreamExt},
+    pharos::*,
+};
 
 pub mod client;
 mod endpoint;
@@ -23,22 +29,32 @@ pub trait Webhook: core::fmt::Debug + Send + Sync {
     async fn post(&self, topic: &str, body: &Value) -> Result<reqwest::Response, reqwest::Error>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct WebhookPool {
     pub webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>>,
+    pub connection_pool: Option<ThreadPool>,
 }
 
 impl Default for WebhookPool {
     fn default() -> Self {
         WebhookPool {
             webhooks: Arc::new(Mutex::new(HashMap::new())),
+            connection_pool: None,
         }
     }
 }
 
 impl WebhookPool {
     pub async fn post(&self, topic: &str, body: &Value) -> Result<(), reqwest::Error> {
-        let map = self.webhooks.try_lock().unwrap();
+        Self::post_webhooks(topic, body, self.webhooks.clone()).await
+    }
+
+    pub async fn post_webhooks(
+        topic: &str,
+        body: &Value,
+        webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>>,
+    ) -> Result<(), reqwest::Error> {
+        let map = webhooks.try_lock().unwrap();
         for (key, value) in &*map {
             let (_webhook_endpoint, webhook) = value;
             match webhook.post(topic, body).await {
@@ -47,6 +63,36 @@ impl WebhookPool {
             }
         }
         Ok(())
+    }
+
+    pub async fn spawn_connection_events(
+        &mut self,
+        connection_events: Arc<Mutex<ConnectionEvents>>,
+    ) {
+        let pool = ThreadPool::new().unwrap();
+
+        let mut events = {
+            let mut connection_events = connection_events.try_lock().unwrap();
+            connection_events
+                .observe(Channel::Bounded(3).into())
+                .await
+                .expect("observe")
+        };
+        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>> =
+            self.webhooks.clone();
+        let future = async move {
+            while let Some(event) = events.next().await {
+                Self::post_webhooks(
+                    "connection",
+                    &serde_json::to_value(&event).unwrap(),
+                    webhooks.clone(),
+                )
+                .await
+                .unwrap();
+            }
+        };
+        pool.spawn_ok(future);
+        self.connection_pool = Some(pool);
     }
 }
 
