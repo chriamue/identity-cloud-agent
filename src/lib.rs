@@ -90,7 +90,9 @@ pub fn rocket(
                 wallet::get_all_dids,
                 wallet::get_public_did,
                 wallet::get_did_endpoint,
-                wallet::post_did_endpoint
+                wallet::post_did_endpoint,
+                webhook::get_all_webhooks,
+                webhook::post_webhook,
             ],
         )
         .mount(
