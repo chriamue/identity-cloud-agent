@@ -28,3 +28,10 @@ services:
       - ROCKET_PORT=8090
       - ROCKET_EXT_HOSTNAME="http://ica2:8090"
       - ROCKET_EXT_SERVICE="http://ica2:8090"
+
+  webhook:
+    profiles:
+      - second-ica
+    image: ghcr.io/timoglastra/acapy-development-webhook-server
+    ports:
+      - "1080:1080"

@@ -3,6 +3,7 @@ use identity_iota::iota_core::IotaDID;
 use rocket::{get, serde::json::Json};
 use rocket_okapi::openapi;
 
+/// # did resolver interface
 #[openapi(tag = "resolver")]
 #[get("/resolver/resolve/<did>")]
 pub fn get_resolve(did: String) -> Json<String> {

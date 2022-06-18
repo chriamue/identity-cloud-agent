@@ -134,6 +134,7 @@ pub async fn post_receive_invitation(
     Json(invitation)
 }
 
+/// # Query agent-to-agent connections
 #[openapi(tag = "connection")]
 #[get("/connections")]
 pub async fn get_all_connections(connections: &State<Connections>) -> Json<Vec<Connection>> {
@@ -142,6 +143,7 @@ pub async fn get_all_connections(connections: &State<Connections>) -> Json<Vec<C
     Json(connections)
 }
 
+/// # Fetch a single connection record
 #[openapi(tag = "connection")]
 #[get("/connections/<conn_id>")]
 pub async fn get_connection(connections: &State<Connections>, conn_id: String) -> Json<Connection> {
@@ -150,6 +152,7 @@ pub async fn get_connection(connections: &State<Connections>, conn_id: String) -
     Json(connection)
 }
 
+/// # Fetch connection remote endpoint
 #[openapi(tag = "connection")]
 #[get("/connections/<conn_id>/endpoints")]
 pub async fn get_connection_endpoints(
@@ -167,6 +170,7 @@ pub async fn get_connection_endpoints(
     })
 }
 
+/// # Remove an existing connection record
 #[openapi(tag = "connection")]
 #[delete("/connections/<conn_id>")]
 pub async fn delete_connection(

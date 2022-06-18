@@ -5,7 +5,7 @@ ident = "ica2"
 #did_iota = "did:iota:As1FSRYahR2JYi3EyvWan43pLrnjGLkDffwQDcBf545G"
 wallet_path = "/wallet/ica2.wallet.hold"
 wallet_password = "changeme"
-webhook_url = "http://localhost:8090"
+webhook_url = "http://webhook:1080"
 
 [release]
 address = "0.0.0.0"

@@ -16,3 +16,7 @@ pub async fn post_message_topic(payload: Json<Value>) -> Status {
     debug!("payload: {}", payload.into_inner());
     Status::Ok
 }
+
+pub enum Topic {
+    ALL,
+}

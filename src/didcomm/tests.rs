@@ -67,7 +67,7 @@ fn test_send_ping() {
 
 #[tokio::test]
 async fn test_message_encryption() -> Result<(), Box<dyn std::error::Error>> {
-    let seed = "CLKmgQ7NbRw3MpGu47TiSjQknGf2oBPnW9nFygzBkh9h";
+    let seed = "BHyHWQqKvvgbcGoXiGS33iUu1Q4KGKP4pJK11RNWzr8c";
     let private = seed.from_base58().unwrap();
 
     let keypair_ed = KeyPair::new(KeyType::Ed25519)?;
@@ -104,8 +104,8 @@ async fn test_message_encryption() -> Result<(), Box<dyn std::error::Error>> {
         .apply()
         .await?;
 
-    let did_from = "did:iota:HcFFrR72GJq2hXuwbz2UwE7wkDE2VRkX2NwHeSVroeUH".to_string();
-    let did_to = "did:iota:HcFFrR72GJq2hXuwbz2UwE7wkDE2VRkX2NwHeSVroeUH".to_string();
+    let did_from = "did:iota:As1FSRYahR2JYi3EyvWan43pLrnjGLkDffwQDcBf545G".to_string();
+    let did_to = "did:iota:As1FSRYahR2JYi3EyvWan43pLrnjGLkDffwQDcBf545G".to_string();
 
     let message = Message::new();
     let message = serde_json::to_string(
@@ -125,7 +125,7 @@ async fn test_message_encryption() -> Result<(), Box<dyn std::error::Error>> {
 
 #[tokio::test]
 async fn test_did_not_on_ledger_on_message_encryption() -> Result<(), Box<dyn std::error::Error>> {
-    let seed = "CLKmgQ7NbRw3MpGu47TiSjQknGf2oBPnW9nFygzBkh9h";
+    let seed = "BHyHWQqKvvgbcGoXiGS33iUu1Q4KGKP4pJK11RNWzr8c";
     let private = seed.from_base58().unwrap();
 
     let keypair_ed = KeyPair::new(KeyType::Ed25519)?;
@@ -162,7 +162,7 @@ async fn test_did_not_on_ledger_on_message_encryption() -> Result<(), Box<dyn st
         .await?;
 
     let did_from = account.did().to_string();
-    let did_to = "did:iota:HcFFrR72GJq2hXuwbz2UwE7wkDE2VRkX2NwHeSVroeUH".to_string();
+    let did_to = "did:iota:As1FSRYahR2JYi3EyvWan43pLrnjGLkDffwQDcBf545G".to_string();
 
     let message = Message::new();
     let message = serde_json::to_string(
