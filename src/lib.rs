@@ -31,6 +31,7 @@ pub use configext::ConfigExt;
 use connection::{ConnectionEvents, Connections};
 use credential::Credentials;
 pub use didcomm::DidComm;
+use message::MessageEvents;
 use ping::PingEvents;
 use schema::Schemas;
 pub use webhook::Webhook;
@@ -66,11 +67,13 @@ pub fn rocket(
     let connection_events: Arc<Mutex<ConnectionEvents>> =
         Arc::new(Mutex::new(ConnectionEvents::new()));
     let ping_events: Arc<Mutex<PingEvents>> = Arc::new(Mutex::new(PingEvents::new()));
+    let message_events: Arc<Mutex<MessageEvents>> = Arc::new(Mutex::new(MessageEvents::new()));
 
     let mut webhook_pool = webhook_pool;
 
     futures::executor::block_on(webhook_pool.spawn_connection_events(connection_events.clone()));
     futures::executor::block_on(webhook_pool.spawn_ping_events(ping_events.clone()));
+    futures::executor::block_on(webhook_pool.spawn_message_events(message_events.clone()));
     rocket
         .mount(
             "/",
@@ -121,6 +124,7 @@ pub fn rocket(
         .manage(didcomm)
         .manage(connection_events)
         .manage(ping_events)
+        .manage(message_events)
 }
 
 #[cfg(test)]

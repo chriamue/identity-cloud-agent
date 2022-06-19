@@ -6,8 +6,6 @@ use didcomm_mediator::protocols::trustping::TrustPingResponseBuilder;
 use rocket::http::Status;
 use rocket::State;
 use rocket::{post, serde::json::Json};
-use rocket_okapi::okapi::schemars;
-use rocket_okapi::okapi::schemars::JsonSchema;
 use rocket_okapi::openapi;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -52,23 +50,6 @@ impl Observable<PingEvent> for PingEvents {
     }
 }
 
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct PingRequest {
-    #[serde(rename = "type")]
-    pub type_: String,
-    pub id: String,
-    pub from: String,
-    pub body: Value,
-}
-
-#[derive(Serialize, Deserialize, JsonSchema)]
-pub struct PingResponse {
-    #[serde(rename = "type")]
-    pub type_: String,
-    pub id: String,
-    pub thid: String,
-}
-
 /// # Send a trustping to a connection
 #[openapi(tag = "trustping")]
 #[post("/connections/<conn_id>/send-ping")]
@@ -78,13 +59,15 @@ pub async fn post_send_ping(
     conn_id: String,
 ) -> Result<Json<Value>, Status> {
     let wallet = wallet.try_lock().unwrap();
-    let lock = connections.connections.lock().await;
-    let connection = lock.get(&conn_id).unwrap().clone();
 
+    let (did_to, endpoint) = {
+        let connections = connections.connections.lock().await;
+        let connection = connections.get(&conn_id).unwrap().clone();
+        (connection.did.to_string(), connection.endpoint)
+    };
     let mut message = TrustPingResponseBuilder::new().build_ping().unwrap();
     message = add_return_route_all_header(message);
     let did_from = wallet.did_iota().unwrap();
-    let did_to = connection.did;
     let keypair = wallet.keypair();
     drop(wallet);
     let ping = sign_and_encrypt(&message, &did_from, &did_to, &keypair)
@@ -93,7 +76,7 @@ pub async fn post_send_ping(
 
     let client = reqwest::Client::new();
     let res = client
-        .post(connection.endpoint.to_string())
+        .post(endpoint.to_string())
         .json(&ping)
         .send()
         .await
@@ -145,12 +128,12 @@ mod tests {
         let response = response.into_json::<Value>().unwrap();
         let connections: Vec<Connection> = from_value(response).unwrap();
 
-        let connection_id = connections[0].id.to_string();
+        let connection_id = connections.first().unwrap().id.to_string();
 
         let response = client
             .post(format!("/connections/{}/send-ping", connection_id))
             .dispatch();
-        assert_eq!(response.status(), Status::InternalServerError);
+        assert_ne!(response.status(), Status::InternalServerError);
     }
 
     #[tokio::test]

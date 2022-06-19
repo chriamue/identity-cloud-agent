@@ -1,4 +1,5 @@
 use crate::connection::ConnectionEvents;
+use crate::message::MessageEvents;
 use crate::ping::PingEvents;
 use async_trait::async_trait;
 use reqwest::RequestBuilder;
@@ -32,6 +33,7 @@ pub struct WebhookPool {
     pub webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>>,
     pub connection_task: Option<Arc<JoinHandle<()>>>,
     pub ping_task: Option<Arc<JoinHandle<()>>>,
+    pub message_task: Option<Arc<JoinHandle<()>>>,
 }
 
 impl Default for WebhookPool {
@@ -40,6 +42,7 @@ impl Default for WebhookPool {
             webhooks: Arc::new(Mutex::new(HashMap::new())),
             connection_task: None,
             ping_task: None,
+            message_task: None,
         }
     }
 }
@@ -124,6 +127,35 @@ impl WebhookPool {
         };
         let task = tokio::task::spawn(future);
         self.ping_task = Some(Arc::new(task));
+    }
+
+    pub async fn spawn_message_events(&mut self, message_events: Arc<Mutex<MessageEvents>>) {
+        let mut events = {
+            let mut message_events = message_events.try_lock().unwrap();
+            message_events
+                .observe(Channel::Bounded(3).into())
+                .await
+                .expect("observe")
+        };
+        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>> =
+            self.webhooks.clone();
+        let future = async move {
+            while let Some(event) = events.next().await {
+                match Self::post_webhooks(
+                    "basicmessages",
+                    &serde_json::to_value(&event).unwrap(),
+                    webhooks.clone(),
+                )
+                .await
+                {
+                    Ok(_) => (),
+                    Err(err) => println!("{:?}", err),
+                }
+            }
+            println!("end async basicmessages future events");
+        };
+        let task = tokio::task::spawn(future);
+        self.message_task = Some(Arc::new(task));
     }
 }
 

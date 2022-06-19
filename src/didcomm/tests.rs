@@ -1,6 +1,5 @@
 use super::{receive, sign_and_encrypt};
 use crate::connection::Connection;
-use crate::ping::{PingRequest, PingResponse};
 use crate::test_rocket;
 use base58::FromBase58;
 use didcomm_rs::Message;
@@ -14,7 +13,7 @@ use identity_iota::prelude::KeyPair;
 use identity_iota::prelude::*;
 use rocket::http::{ContentType, Status};
 use rocket::local::blocking::Client;
-use serde_json::{from_value, json, Value};
+use serde_json::{from_value, Value};
 
 #[test]
 fn test_send_ping() {
@@ -40,29 +39,14 @@ fn test_send_ping() {
     let response = client.get("/connections").dispatch();
     assert_eq!(response.status(), Status::Ok);
     let response = response.into_json::<Value>().unwrap();
-    let _connections: Vec<Connection> = from_value(response).unwrap();
+    let connections: Vec<Connection> = from_value(response).unwrap();
 
-    let body: Value = json!( {
-        "response_requested": true
-    });
-
-    let ping_request: PingRequest = PingRequest {
-        type_: "https://didcomm.org/trust-ping/2.0/ping".to_string(),
-        id: "foo".to_string(),
-        from: "bar".to_string(),
-        body,
-    };
-    let ping_request: String = serde_json::to_string(&ping_request).unwrap();
+    let connection_id = connections.first().unwrap().id.to_string();
 
     let response = client
-        .post("/")
-        .header(ContentType::JSON)
-        .body(ping_request)
+        .post(format!("/connections/{}/send-ping", connection_id))
         .dispatch();
-
-    assert_eq!(response.status(), Status::Ok);
-    let response = response.into_json::<PingResponse>().unwrap();
-    assert_eq!(response.thid, "foo".to_string());
+    assert_ne!(response.status(), Status::InternalServerError);
 }
 
 #[tokio::test]

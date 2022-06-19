@@ -1,9 +1,8 @@
 use crate::connection::{invitation::Invitation, Connections, Termination, TerminationResponse};
 use crate::credential::{issue::Issuance, Credentials};
-use crate::message::MessageRequest;
+use crate::message::{MessageEvent, MessageEvents};
 use crate::ping::{PingEvent, PingEvents};
 use crate::wallet::Wallet;
-use crate::webhook::WebhookPool;
 use async_trait::async_trait;
 use did_key::KeyMaterial;
 use didcomm_mediator::protocols::trustping::TrustPingResponseBuilder;
@@ -46,10 +45,10 @@ pub trait DidComm: Send + Sync {
 #[post("/", format = "application/json", data = "<body>")]
 pub async fn post_endpoint(
     wallet: &State<Arc<Mutex<Wallet>>>,
-    webhook_pool: &State<WebhookPool>,
     connections: &State<Connections>,
     credentials: &State<Credentials>,
     ping_events: &State<Arc<Mutex<PingEvents>>>,
+    message_events: &State<Arc<Mutex<MessageEvents>>>,
     body: Json<Value>,
 ) -> Result<Json<Value>, Status> {
     let body_str = serde_json::to_string(&body.into_inner()).unwrap();
@@ -100,14 +99,14 @@ pub async fn post_endpoint(
                 .unwrap();
             Ok(Json(json!(ping_response)))
         }
-        "iota/post/0.1/post" => {
-            let message_request: MessageRequest =
-                serde_json::from_str(&received.get_body().unwrap()).unwrap();
-            info!("message: {:?}", message_request.payload);
-            webhook_pool
-                .post("message", &message_request.payload)
-                .await
-                .unwrap();
+        "https://didcomm.org/basicmessage/2.0/message" => {
+            let did_from = received.get_didcomm_header().from.clone().unwrap();
+            let payload = received.get_body().unwrap();
+            message_events
+                .try_lock()
+                .unwrap()
+                .send(MessageEvent::Received(did_from, payload))
+                .await;
             Ok(Json(json!({})))
         }
         "iota/termination/0.1/termination" => {
