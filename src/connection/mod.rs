@@ -251,7 +251,10 @@ mod tests {
         let response = response.into_json::<Value>().await.unwrap();
         let connections = response.as_array().unwrap();
         assert_eq!(connections.len(), 1);
-        assert_eq!(webhook::test_client::last_response(&webhook_client).unwrap(), Value::default());
+        assert_eq!(
+            webhook::test_client::last_response(&webhook_client).unwrap(),
+            Value::default()
+        );
     }
 
     #[tokio::test]

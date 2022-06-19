@@ -16,7 +16,6 @@ impl Client {
 
 #[async_trait]
 impl Webhook for Client {
-
     fn as_any(&self) -> &dyn Any {
         self
     }

@@ -134,7 +134,9 @@ pub async fn test_rocket() -> Rocket<Build> {
 }
 
 #[cfg(test)]
-pub async fn test_rocket_with_webhook_client(webhook_client: Arc<Mutex<Box<dyn webhook::Webhook>>>) -> Rocket<Build> {
+pub async fn test_rocket_with_webhook_client(
+    webhook_client: Arc<Mutex<Box<dyn webhook::Webhook>>>,
+) -> Rocket<Build> {
     let rocket = rocket::build();
     let figment = rocket.figment();
     let config: Config = figment.extract().expect("config");

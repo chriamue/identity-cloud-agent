@@ -3,10 +3,10 @@ use http::response::Builder;
 use reqwest::RequestBuilder;
 use reqwest::{Response, ResponseBuilderExt};
 use serde_json::Value;
-use url::Url;
 use std::any::Any;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use url::Url;
 
 #[derive(Debug)]
 pub struct TestClient {
@@ -33,7 +33,6 @@ impl TestClient {
 
 #[async_trait]
 impl Webhook for TestClient {
-
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -60,7 +59,7 @@ pub fn last_response(client: &Arc<Mutex<Box<dyn Webhook>>>) -> Option<Value> {
     let client = client.try_lock().unwrap();
     match client.as_any().downcast_ref::<TestClient>() {
         Some(c) => Some(c.last_response()),
-        None => None
+        None => None,
     }
 }
 

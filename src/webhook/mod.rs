@@ -7,12 +7,12 @@ use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::openapi;
 use serde_json::Value;
+use std::any::Any;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use {futures::StreamExt, pharos::*};
-use std::any::Any;
 
 pub mod client;
 mod endpoint;
