@@ -13,6 +13,44 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use {futures::SinkExt, pharos::*};
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum PingEvent {
+    Received(String),
+}
+
+pub struct PingEvents {
+    pharos: Pharos<PingEvent>,
+}
+
+impl Default for PingEvents {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl PingEvents {
+    pub fn new() -> Self {
+        Self {
+            pharos: Pharos::default(),
+        }
+    }
+    pub async fn send(&mut self, event: PingEvent) {
+        self.pharos.send(event).await.expect("notify observers");
+    }
+}
+
+impl Observable<PingEvent> for PingEvents {
+    type Error = PharErr;
+
+    fn observe(
+        &mut self,
+        options: ObserveConfig<PingEvent>,
+    ) -> Observe<'_, PingEvent, Self::Error> {
+        self.pharos.observe(options)
+    }
+}
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct PingRequest {
@@ -31,6 +69,7 @@ pub struct PingResponse {
     pub thid: String,
 }
 
+/// # Send a trustping to a connection
 #[openapi(tag = "trustping")]
 #[post("/connections/<conn_id>/send-ping")]
 pub async fn post_send_ping(
@@ -78,8 +117,10 @@ pub async fn post_send_ping(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::connection::Connection;
     use crate::test_rocket;
+    use futures::StreamExt;
     use rocket::http::{ContentType, Status};
     use rocket::local::blocking::Client;
     use serde_json::{from_value, Value};
@@ -116,5 +157,21 @@ mod tests {
             .post(format!("/connections/{}/send-ping", connection_id))
             .dispatch();
         assert_eq!(response.status(), Status::InternalServerError);
+    }
+
+    #[tokio::test]
+    async fn test_ping_events() {
+        let mut ping_events = PingEvents::new();
+        let mut events = ping_events
+            .observe(Channel::Bounded(3).into())
+            .await
+            .expect("observe");
+        ping_events
+            .send(PingEvent::Received(String::default()))
+            .await;
+        let evt = dbg!(events.next().await.unwrap());
+        drop(ping_events);
+        assert_eq!(PingEvent::Received(String::default()), evt);
+        assert_eq!(None, events.next().await);
     }
 }

@@ -10,6 +10,12 @@ pub struct ConnectionEvents {
     pharos: Pharos<ConnectionEvent>,
 }
 
+impl Default for ConnectionEvents {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ConnectionEvents {
     pub fn new() -> Self {
         Self {

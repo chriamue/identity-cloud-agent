@@ -23,7 +23,7 @@ pub struct MessageRequest {
     pub payload: Value,
 }
 
-/// # Simple messaging
+/// # Send a basic message to a connection
 #[openapi(tag = "basicmessage")]
 #[post("/connections/<conn_id>/send-message", data = "<payload>")]
 pub async fn post_send_message(

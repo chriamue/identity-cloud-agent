@@ -1,4 +1,5 @@
 use crate::connection::ConnectionEvents;
+use crate::ping::PingEvents;
 use async_trait::async_trait;
 use reqwest::RequestBuilder;
 use rocket::State;
@@ -30,6 +31,7 @@ pub trait Webhook: core::fmt::Debug + Send + Sync {
 pub struct WebhookPool {
     pub webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>>,
     pub connection_task: Option<Arc<JoinHandle<()>>>,
+    pub ping_task: Option<Arc<JoinHandle<()>>>,
 }
 
 impl Default for WebhookPool {
@@ -37,6 +39,7 @@ impl Default for WebhookPool {
         WebhookPool {
             webhooks: Arc::new(Mutex::new(HashMap::new())),
             connection_task: None,
+            ping_task: None,
         }
     }
 }
@@ -78,7 +81,7 @@ impl WebhookPool {
         let future = async move {
             while let Some(event) = events.next().await {
                 match Self::post_webhooks(
-                    "connection",
+                    "connections",
                     &serde_json::to_value(&event).unwrap(),
                     webhooks.clone(),
                 )
@@ -88,16 +91,45 @@ impl WebhookPool {
                     Err(err) => println!("{:?}", err),
                 }
             }
-            println!("end async future events");
+            println!("end async connection future events");
         };
         let task = tokio::task::spawn(future);
         self.connection_task = Some(Arc::new(task));
+    }
+
+    pub async fn spawn_ping_events(&mut self, ping_events: Arc<Mutex<PingEvents>>) {
+        let mut events = {
+            let mut ping_events = ping_events.try_lock().unwrap();
+            ping_events
+                .observe(Channel::Bounded(3).into())
+                .await
+                .expect("observe")
+        };
+        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>> =
+            self.webhooks.clone();
+        let future = async move {
+            while let Some(event) = events.next().await {
+                match Self::post_webhooks(
+                    "ping",
+                    &serde_json::to_value(&event).unwrap(),
+                    webhooks.clone(),
+                )
+                .await
+                {
+                    Ok(_) => (),
+                    Err(err) => println!("{:?}", err),
+                }
+            }
+            println!("end async ping future events");
+        };
+        let task = tokio::task::spawn(future);
+        self.ping_task = Some(Arc::new(task));
     }
 }
 
 /// # List registered webhooks
 #[openapi(tag = "webhook")]
-#[get("/webhook")]
+#[get("/webhooks")]
 pub async fn get_all_webhooks(webhook_pool: &State<WebhookPool>) -> Json<Vec<WebhookEndpoint>> {
     let webhooks: Vec<WebhookEndpoint> = {
         let mut webhooks = Vec::new();
@@ -126,10 +158,7 @@ pub async fn post_webhook(
         (webhook_endpoint.clone(), webhook_client),
     );
     webhook_pool
-        .post(
-            "webhook-added",
-            &serde_json::to_value(&webhook_endpoint).unwrap(),
-        )
+        .post("webhook", &serde_json::to_value(&webhook_endpoint).unwrap())
         .await
         .unwrap();
     Json(webhook_endpoint)
