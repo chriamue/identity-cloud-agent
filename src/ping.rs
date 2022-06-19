@@ -86,6 +86,7 @@ pub async fn post_send_ping(
     let did_from = wallet.did_iota().unwrap();
     let did_to = connection.did;
     let keypair = wallet.keypair();
+    drop(wallet);
     let ping = sign_and_encrypt(&message, &did_from, &did_to, &keypair)
         .await
         .unwrap();
@@ -100,14 +101,7 @@ pub async fn post_send_ping(
     let json: Value = res.json().await.unwrap();
     let body_str = serde_json::to_string(&json).unwrap();
 
-    let received = match receive(
-        &body_str,
-        Some(&wallet.keypair().private_key_bytes()),
-        None,
-        None,
-    )
-    .await
-    {
+    let received = match receive(&body_str, Some(&keypair.private_key_bytes()), None, None).await {
         Ok(received) => received,
         Err(_) => return Err(Status::BadRequest),
     };

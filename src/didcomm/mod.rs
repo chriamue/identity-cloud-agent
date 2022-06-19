@@ -1,9 +1,12 @@
 use crate::connection::{invitation::Invitation, Connections, Termination, TerminationResponse};
 use crate::credential::{issue::Issuance, Credentials};
 use crate::message::MessageRequest;
-use crate::ping::{PingRequest, PingResponse};
+use crate::ping::{PingEvent, PingEvents};
+use crate::wallet::Wallet;
 use crate::webhook::WebhookPool;
 use async_trait::async_trait;
+use did_key::KeyMaterial;
+use didcomm_mediator::protocols::trustping::TrustPingResponseBuilder;
 use didcomm_rs::Jwe;
 use didcomm_rs::{
     crypto::{CryptoAlgorithm, SignatureAlgorithm},
@@ -15,12 +18,14 @@ use identity_iota::did::MethodScope;
 use identity_iota::iota_core::{IotaDID, IotaVerificationMethod};
 use identity_iota::prelude::{KeyPair, KeyType};
 use reqwest::RequestBuilder;
+use rocket::http::Status;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::openapi;
 use serde_json::{json, Value};
 use std::str::FromStr;
-use uuid::Uuid;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub mod client;
 #[cfg(test)]
@@ -38,40 +43,76 @@ pub trait DidComm: Send + Sync {
 }
 
 #[openapi(tag = "didcomm")]
-#[post("/", format = "application/json", data = "<data>")]
+#[post("/", format = "application/json", data = "<body>")]
 pub async fn post_endpoint(
+    wallet: &State<Arc<Mutex<Wallet>>>,
     webhook_pool: &State<WebhookPool>,
     connections: &State<Connections>,
     credentials: &State<Credentials>,
-    data: Json<Value>,
-) -> Json<Value> {
-    match data["type"].as_str().unwrap() {
+    ping_events: &State<Arc<Mutex<PingEvents>>>,
+    body: Json<Value>,
+) -> Result<Json<Value>, Status> {
+    let body_str = serde_json::to_string(&body.into_inner()).unwrap();
+
+    let (my_did, private_key) = {
+        let wallet = wallet.try_lock().unwrap();
+        (
+            wallet.did_iota().unwrap(),
+            wallet.keypair().private_key_bytes(),
+        )
+    };
+    let received: Message = match receive(&body_str, &private_key, None).await {
+        Ok(received) => received,
+        Err(_) => return Err(Status::BadRequest),
+    };
+    match received.get_didcomm_header().m_type.as_str() {
         "https://didcomm.org/out-of-band/2.0/invitation" => {
-            let invitation: Invitation = serde_json::from_value(data.into_inner()).unwrap();
+            let invitation: Invitation =
+                serde_json::from_str(&received.get_body().unwrap()).unwrap();
             info!("invitation = {:?}", invitation.id);
-            Json(json!({}))
+            Ok(Json(json!({})))
         }
         "https://didcomm.org/trust-ping/2.0/ping" => {
-            let ping_request: PingRequest = serde_json::from_value(data.into_inner()).unwrap();
-            let ping_response: PingResponse = PingResponse {
-                type_: "https://didcomm.org/trust-ping/2.0/ping-response".to_string(),
-                id: Uuid::new_v4().to_string(),
-                thid: ping_request.id,
-            };
-            Json(json!(ping_response))
+            let did_to = received.get_didcomm_header().from.clone().unwrap();
+            let response = TrustPingResponseBuilder::new()
+                .message(received.clone())
+                .build()
+                .unwrap();
+            ping_events
+                .try_lock()
+                .unwrap()
+                .send(PingEvent::Received(
+                    received
+                        .get_didcomm_header()
+                        .from
+                        .as_ref()
+                        .unwrap()
+                        .to_string(),
+                ))
+                .await;
+            let keypair = identity_iota::prelude::KeyPair::try_from_private_key_bytes(
+                KeyType::X25519,
+                &private_key,
+            )
+            .unwrap();
+            let ping_response = sign_and_encrypt(&response, &my_did, &did_to, &keypair)
+                .await
+                .unwrap();
+            Ok(Json(json!(ping_response)))
         }
         "iota/post/0.1/post" => {
             let message_request: MessageRequest =
-                serde_json::from_value(data.into_inner()).unwrap();
+                serde_json::from_str(&received.get_body().unwrap()).unwrap();
             info!("message: {:?}", message_request.payload);
             webhook_pool
                 .post("message", &message_request.payload)
                 .await
                 .unwrap();
-            Json(json!({}))
+            Ok(Json(json!({})))
         }
         "iota/termination/0.1/termination" => {
-            let termination: Termination = serde_json::from_value(data.into_inner()).unwrap();
+            let termination: Termination =
+                serde_json::from_str(&received.get_body().unwrap()).unwrap();
             let mut lock = connections.connections.lock().await;
             lock.remove(&termination.id).unwrap();
             std::mem::drop(lock);
@@ -81,18 +122,18 @@ pub async fn post_endpoint(
                 id: termination.id,
                 body: Value::default(),
             };
-            Json(json!(termination))
+            Ok(Json(json!(termination)))
         }
         "iota/issuance/0.1/issuance" => {
-            let issuance: Issuance = serde_json::from_value(data.into_inner()).unwrap();
+            let issuance: Issuance = serde_json::from_str(&received.get_body().unwrap()).unwrap();
             let credential = issuance.signed_credential;
             info!("issuance: {:?}", credential);
             let mut lock = credentials.credentials.lock().await;
 
             lock.insert(credential.id.clone().unwrap().to_string(), credential);
-            Json(json!({}))
+            Ok(Json(json!({})))
         }
-        _ => Json(json!({})),
+        _ => Ok(Json(json!({}))),
     }
 }
 
