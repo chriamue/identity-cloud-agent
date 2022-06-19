@@ -97,15 +97,17 @@ pub async fn post_did_endpoint(
 mod tests {
     use crate::test_rocket;
     use rocket::http::Status;
-    use rocket::local::blocking::Client;
+    use rocket::local::asynchronous::Client;
     use serde_json::Value;
 
-    #[test]
-    fn test_public_did() {
-        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
-        let response = client.get("/wallet/did/public").dispatch();
+    #[tokio::test]
+    async fn test_public_did() {
+        let client = Client::tracked(test_rocket().await)
+            .await
+            .expect("valid rocket instance");
+        let response = client.get("/wallet/did/public").dispatch().await;
         assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<Value>().unwrap();
+        let response = response.into_json::<Value>().await.unwrap();
         assert!(response.get("id").is_some());
     }
 }

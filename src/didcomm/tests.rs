@@ -12,41 +12,48 @@ use identity_iota::account_storage::MemStore;
 use identity_iota::prelude::KeyPair;
 use identity_iota::prelude::*;
 use rocket::http::{ContentType, Status};
-use rocket::local::blocking::Client;
+use rocket::local::asynchronous::Client;
 use serde_json::{from_value, Value};
 
-#[test]
-fn test_send_ping() {
-    let client = Client::tracked(test_rocket()).expect("valid rocket instance");
-    let response = client.get("/connections").dispatch();
+#[tokio::test]
+async fn test_send_ping() {
+    let client = Client::tracked(test_rocket().await)
+        .await
+        .expect("valid rocket instance");
+    let response = client.get("/connections").dispatch().await;
     assert_eq!(response.status(), Status::Ok);
-    let response = response.into_json::<Value>().unwrap();
+    let response = response.into_json::<Value>().await.unwrap();
     let connections = response.as_array().unwrap();
     assert_eq!(connections.len(), 0);
 
-    let response = client.post("/out-of-band/create-invitation").dispatch();
+    let response = client
+        .post("/out-of-band/create-invitation")
+        .dispatch()
+        .await;
     assert_eq!(response.status(), Status::Ok);
-    let invitation: Value = response.into_json::<Value>().unwrap();
+    let invitation: Value = response.into_json::<Value>().await.unwrap();
     let invitation: String = serde_json::to_string(&invitation).unwrap();
 
     let response = client
         .post("/out-of-band/receive-invitation")
         .header(ContentType::JSON)
         .body(invitation)
-        .dispatch();
+        .dispatch()
+        .await;
     assert_eq!(response.status(), Status::Ok);
 
-    let response = client.get("/connections").dispatch();
+    let response = client.get("/connections").dispatch().await;
     assert_eq!(response.status(), Status::Ok);
-    let response = response.into_json::<Value>().unwrap();
+    let response = response.into_json::<Value>().await.unwrap();
     let connections: Vec<Connection> = from_value(response).unwrap();
 
     let connection_id = connections.first().unwrap().id.to_string();
 
     let response = client
         .post(format!("/connections/{}/send-ping", connection_id))
-        .dispatch();
-    assert_ne!(response.status(), Status::InternalServerError);
+        .dispatch()
+        .await;
+    assert_eq!(response.status(), Status::InternalServerError);
 }
 
 #[tokio::test]

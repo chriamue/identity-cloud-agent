@@ -75,7 +75,7 @@ impl WebhookPool {
         let mut events = {
             let mut connection_events = connection_events.try_lock().unwrap();
             connection_events
-                .observe(Channel::Bounded(3).into())
+                .observe(Channel::Bounded(20).into())
                 .await
                 .expect("observe")
         };
@@ -104,7 +104,7 @@ impl WebhookPool {
         let mut events = {
             let mut ping_events = ping_events.try_lock().unwrap();
             ping_events
-                .observe(Channel::Bounded(3).into())
+                .observe(Channel::Unbounded.into())
                 .await
                 .expect("observe")
         };
@@ -133,7 +133,7 @@ impl WebhookPool {
         let mut events = {
             let mut message_events = message_events.try_lock().unwrap();
             message_events
-                .observe(Channel::Bounded(3).into())
+                .observe(Channel::Unbounded.into())
                 .await
                 .expect("observe")
         };
@@ -201,11 +201,13 @@ mod tests {
     use crate::test_rocket;
     use crate::webhook::WebhookEndpoint;
     use rocket::http::{ContentType, Status};
-    use rocket::local::blocking::Client;
+    use rocket::local::asynchronous::Client;
 
-    #[test]
-    fn test_post_webhook() {
-        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
+    #[tokio::test]
+    async fn test_post_webhook() {
+        let client = Client::tracked(test_rocket().await)
+            .await
+            .expect("valid rocket instance");
 
         let mut webhook = WebhookEndpoint::default();
         webhook.id = None;
@@ -214,9 +216,10 @@ mod tests {
             .post("/webhook")
             .header(ContentType::JSON)
             .json(&webhook)
-            .dispatch();
+            .dispatch()
+            .await;
         assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<WebhookEndpoint>().unwrap();
+        let response = response.into_json::<WebhookEndpoint>().await.unwrap();
         assert!(response.id.is_some());
     }
 }

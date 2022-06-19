@@ -7,7 +7,6 @@ use rocket::response::Redirect;
 use rocket::{Build, Rocket};
 use rocket_okapi::{openapi, openapi_get_routes, swagger_ui::*};
 use std::sync::Arc;
-use std::thread;
 use tokio::sync::Mutex;
 use webhook::WebhookPool;
 
@@ -42,7 +41,7 @@ fn index() -> Redirect {
     Redirect::to("/swagger-ui")
 }
 
-pub fn rocket(
+pub async fn rocket(
     rocket: Rocket<Build>,
     config: Config,
     webhook_pool: WebhookPool,
@@ -52,15 +51,8 @@ pub fn rocket(
     let credentials: Credentials = Credentials::default();
     let schemas: Schemas = Schemas::default();
 
-    let runtime = tokio::runtime::Runtime::new().unwrap();
     let cloned_config = config.clone();
-    let wallet = thread::spawn(move || {
-        runtime
-            .block_on(Wallet::new_from_config(&cloned_config))
-            .unwrap()
-    })
-    .join()
-    .expect("Thread panicked");
+    let wallet = Wallet::new_from_config(&cloned_config).await.unwrap();
     wallet.log();
     let wallet = Arc::new(Mutex::new(wallet));
 
@@ -71,9 +63,14 @@ pub fn rocket(
 
     let mut webhook_pool = webhook_pool;
 
-    futures::executor::block_on(webhook_pool.spawn_connection_events(connection_events.clone()));
-    futures::executor::block_on(webhook_pool.spawn_ping_events(ping_events.clone()));
-    futures::executor::block_on(webhook_pool.spawn_message_events(message_events.clone()));
+    webhook_pool
+        .spawn_connection_events(connection_events.clone())
+        .await;
+    webhook_pool.spawn_ping_events(ping_events.clone()).await;
+    webhook_pool
+        .spawn_message_events(message_events.clone())
+        .await;
+
     rocket
         .mount(
             "/",
@@ -128,10 +125,10 @@ pub fn rocket(
 }
 
 #[cfg(test)]
-pub fn test_rocket() -> Rocket<Build> {
+pub async fn test_rocket() -> Rocket<Build> {
     let rocket = rocket::build();
     let figment = rocket.figment();
     let config: Config = figment.extract().expect("config");
     let didcomm = Box::new(didcomm::test_client::TestClient::new()) as Box<dyn didcomm::DidComm>;
-    self::rocket(rocket, config, WebhookPool::default(), didcomm)
+    self::rocket(rocket, config, WebhookPool::default(), didcomm).await
 }

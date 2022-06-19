@@ -51,12 +51,14 @@ pub async fn get_all_schemas(schemas: &State<Schemas>) -> Json<Value> {
 mod tests {
     use crate::test_rocket;
     use rocket::http::{ContentType, Status};
-    use rocket::local::blocking::Client;
+    use rocket::local::asynchronous::Client;
     use serde_json::Value;
 
-    #[test]
-    fn test_schema() {
-        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
+    #[tokio::test]
+    async fn test_schema() {
+        let client = Client::tracked(test_rocket().await)
+            .await
+            .expect("valid rocket instance");
 
         let schema = include_str!("../assets/degree_schema.json");
 
@@ -64,12 +66,13 @@ mod tests {
             .post("/schemas")
             .header(ContentType::JSON)
             .body(schema)
-            .dispatch();
+            .dispatch()
+            .await;
         assert_eq!(response.status(), Status::Ok);
 
-        let response = client.get("/schemas").dispatch();
+        let response = client.get("/schemas").dispatch().await;
         assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<Value>().unwrap();
+        let response = response.into_json::<Value>().await.unwrap();
         let schemas = response.as_array().unwrap();
         assert_eq!(schemas.len(), 1);
     }

@@ -89,11 +89,8 @@ pub async fn post_endpoint(
                         .to_string(),
                 ))
                 .await;
-            let keypair = identity_iota::prelude::KeyPair::try_from_private_key_bytes(
-                KeyType::X25519,
-                &private_key,
-            )
-            .unwrap();
+            let keypair =
+                KeyPair::try_from_private_key_bytes(KeyType::X25519, &private_key).unwrap();
             let ping_response = sign_and_encrypt(&response, &my_did, &did_to, &keypair)
                 .await
                 .unwrap();

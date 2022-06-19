@@ -9,7 +9,7 @@ use identity_cloud_agent::{
 };
 
 #[launch]
-pub fn rocket() -> _ {
+async fn rocket() -> _ {
     let rocket = rocket::build();
     let figment = rocket.figment();
     let mut config: Config = figment.extract().expect("config");
@@ -43,5 +43,5 @@ pub fn rocket() -> _ {
     );
     let didcomm = Box::new(didcomm::Client::new()) as Box<dyn didcomm::DidComm>;
 
-    identity_cloud_agent::rocket(rocket, config, webhook_pool, didcomm)
+    identity_cloud_agent::rocket(rocket, config, webhook_pool, didcomm).await
 }

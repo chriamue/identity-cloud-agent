@@ -1,7 +1,9 @@
 use crate::connection::Connections;
+use crate::didcomm::sign_and_encrypt;
 use crate::wallet::Wallet;
-use didcomm_mediator::message::sign_and_encrypt;
+use did_key::KeyMaterial;
 use didcomm_mediator::protocols::basicmessage::BasicMessageBuilder;
+use identity_iota::prelude::{KeyPair, KeyType};
 use rocket::http::Status;
 use rocket::State;
 use rocket::{post, serde::json::Json};
@@ -58,7 +60,13 @@ pub async fn post_send_message(
     conn_id: String,
     payload: Json<Value>,
 ) -> Status {
-    let wallet = wallet.try_lock().unwrap();
+    let (my_did, private_key) = {
+        let wallet = wallet.try_lock().unwrap();
+        (
+            wallet.did_iota().unwrap(),
+            wallet.keypair().private_key_bytes(),
+        )
+    };
     let (did_to, endpoint) = {
         let connections = connections.connections.lock().await;
         let connection = connections.get(&conn_id).unwrap().clone();
@@ -68,10 +76,8 @@ pub async fn post_send_message(
     let payload = serde_json::to_string(&payload.into_inner()).unwrap();
     let message = BasicMessageBuilder::new().message(payload).build().unwrap();
 
-    let did_from = wallet.did_iota().unwrap();
-    let keypair = wallet.keypair();
-    drop(wallet);
-    let message_request = sign_and_encrypt(&message, &did_from, &did_to, &keypair)
+    let keypair = KeyPair::try_from_private_key_bytes(KeyType::X25519, &private_key).unwrap();
+    let message_request = sign_and_encrypt(&message, &my_did, &did_to, &keypair)
         .await
         .unwrap();
 
@@ -90,41 +96,47 @@ mod tests {
     use crate::connection::Connection;
     use crate::test_rocket;
     use rocket::http::{ContentType, Status};
-    use rocket::local::blocking::Client;
+    use rocket::local::asynchronous::Client;
     use serde_json::{from_value, Value};
 
-    #[ignore = "SIGABRT"]
-    #[test]
-    fn test_send_basicmessage() {
-        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
-        let response = client.get("/connections").dispatch();
+    #[tokio::test]
+    async fn test_send_basicmessage() {
+        let client = Client::tracked(test_rocket().await)
+            .await
+            .expect("valid rocket instance");
+        let response = client.get("/connections").dispatch().await;
         assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<Value>().unwrap();
+        let response = response.into_json::<Value>().await.unwrap();
         let connections = response.as_array().unwrap();
         assert_eq!(connections.len(), 0);
 
-        let response = client.post("/out-of-band/create-invitation").dispatch();
+        let response = client
+            .post("/out-of-band/create-invitation")
+            .dispatch()
+            .await;
         assert_eq!(response.status(), Status::Ok);
-        let invitation: Value = response.into_json::<Value>().unwrap();
+        let invitation: Value = response.into_json::<Value>().await.unwrap();
         let invitation: String = serde_json::to_string(&invitation).unwrap();
 
         let response = client
             .post("/out-of-band/receive-invitation")
             .header(ContentType::JSON)
             .body(invitation)
-            .dispatch();
+            .dispatch()
+            .await;
         assert_eq!(response.status(), Status::Ok);
 
-        let response = client.get("/connections").dispatch();
+        let response = client.get("/connections").dispatch().await;
         assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<Value>().unwrap();
+        let response = response.into_json::<Value>().await.unwrap();
         let connections: Vec<Connection> = from_value(response).unwrap();
 
         let connection_id = connections[0].id.to_string();
 
         let response = client
             .post(format!("/connections/{}/send-message", connection_id))
-            .dispatch();
+            .dispatch()
+            .await;
         assert_ne!(response.status(), Status::InternalServerError);
     }
 }

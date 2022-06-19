@@ -58,30 +58,36 @@ mod tests {
     use crate::test_rocket;
     use crate::Config;
     use rocket::http::Status;
-    use rocket::local::blocking::Client;
+    use rocket::local::asynchronous::Client;
     use rocket::State;
 
-    #[test]
-    fn test_get_endpoint() {
-        let rocket = test_rocket();
+    #[tokio::test]
+    async fn test_get_endpoint() {
+        let rocket = test_rocket().await;
         let config: &State<Config> = State::get(&rocket).expect("managed `ConfigState`");
         let did = config.did_iota.as_ref().unwrap().to_string();
-        let client = Client::tracked(rocket).expect("valid rocket instance");
+        let client = Client::tracked(rocket)
+            .await
+            .expect("valid rocket instance");
         let response = client
             .get(format!("/ledger/did-endpoint?did={}", did))
-            .dispatch();
+            .dispatch()
+            .await;
         assert_eq!(response.status(), Status::Ok);
     }
 
-    #[test]
-    fn test_get_verkey() {
-        let rocket = test_rocket();
+    #[tokio::test]
+    async fn test_get_verkey() {
+        let rocket = test_rocket().await;
         let config: &State<Config> = State::get(&rocket).expect("managed `ConfigState`");
         let did = config.did_iota.as_ref().unwrap().to_string();
-        let client = Client::tracked(rocket).expect("valid rocket instance");
+        let client = Client::tracked(rocket)
+            .await
+            .expect("valid rocket instance");
         let response = client
             .get(format!("/ledger/did-verkey?did={}", did))
-            .dispatch();
+            .dispatch()
+            .await;
         assert_eq!(response.status(), Status::Ok);
     }
 }

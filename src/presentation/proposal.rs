@@ -68,11 +68,13 @@ mod tests {
     use super::*;
     use crate::test_rocket;
     use rocket::http::{ContentType, Status};
-    use rocket::local::blocking::Client;
+    use rocket::local::asynchronous::Client;
 
-    #[test]
-    fn test_send_proposal() {
-        let client = Client::tracked(test_rocket()).expect("valid rocket instance");
+    #[tokio::test]
+    async fn test_send_proposal() {
+        let client = Client::tracked(test_rocket().await)
+            .await
+            .expect("valid rocket instance");
 
         let proof_request = ProofRequest {
             connection_id: "foo".to_string(),
@@ -84,7 +86,8 @@ mod tests {
             .post("/present-proof/send-proposal")
             .header(ContentType::JSON)
             .body(invitation)
-            .dispatch();
+            .dispatch()
+            .await;
         assert_eq!(response.status(), Status::InternalServerError);
     }
 }
