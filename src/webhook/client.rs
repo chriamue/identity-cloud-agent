@@ -1,6 +1,7 @@
 use super::Webhook;
 use reqwest::RequestBuilder;
 use serde_json::Value;
+use std::any::Any;
 
 #[derive(Debug)]
 pub struct Client {
@@ -15,6 +16,11 @@ impl Client {
 
 #[async_trait]
 impl Webhook for Client {
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn request(&self, topic: &str, body: &Value) -> RequestBuilder {
         let client = reqwest::Client::new();
         client

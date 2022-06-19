@@ -210,14 +210,18 @@ pub async fn delete_connection(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_rocket;
+    use crate::webhook;
+    use crate::{test_rocket, test_rocket_with_webhook_client};
     use rocket::http::{ContentType, Status};
     use rocket::local::asynchronous::Client;
     use serde_json::Value;
 
     #[tokio::test]
     async fn test_connections() {
-        let client = Client::tracked(test_rocket().await)
+        let webhook_client = Box::new(webhook::test_client::TestClient::new(Default::default()))
+            as Box<dyn webhook::Webhook>;
+        let webhook_client = Arc::new(Mutex::new(webhook_client));
+        let client = Client::tracked(test_rocket_with_webhook_client(webhook_client.clone()).await)
             .await
             .expect("valid rocket instance");
         let response = client.get("/connections").dispatch().await;
@@ -247,6 +251,7 @@ mod tests {
         let response = response.into_json::<Value>().await.unwrap();
         let connections = response.as_array().unwrap();
         assert_eq!(connections.len(), 1);
+        assert_eq!(webhook::test_client::last_response(&webhook_client).unwrap(), Value::default());
     }
 
     #[tokio::test]

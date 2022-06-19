@@ -7,6 +7,8 @@ use identity_cloud_agent::{
     webhook::{self, WebhookEndpoint, WebhookPool},
     Config, ConfigExt,
 };
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[launch]
 async fn rocket() -> _ {
@@ -39,7 +41,7 @@ async fn rocket() -> _ {
     let webhook_pool = WebhookPool::default();
     webhook_pool.webhooks.try_lock().unwrap().insert(
         webhook_endpoint.id.as_ref().unwrap().to_string(),
-        (webhook_endpoint, webhook_client),
+        (webhook_endpoint, Arc::new(Mutex::new(webhook_client))),
     );
     let didcomm = Box::new(didcomm::Client::new()) as Box<dyn didcomm::DidComm>;
 

@@ -12,6 +12,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use {futures::StreamExt, pharos::*};
+use std::any::Any;
 
 pub mod client;
 mod endpoint;
@@ -24,13 +25,14 @@ pub use client::Client;
 
 #[async_trait]
 pub trait Webhook: core::fmt::Debug + Send + Sync {
+    fn as_any(&self) -> &dyn Any;
     fn request(&self, topic: &str, body: &Value) -> RequestBuilder;
     async fn post(&self, topic: &str, body: &Value) -> Result<reqwest::Response, reqwest::Error>;
 }
 
 #[derive(Debug, Clone)]
 pub struct WebhookPool {
-    pub webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>>,
+    pub webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>>,
     pub connection_task: Option<Arc<JoinHandle<()>>>,
     pub ping_task: Option<Arc<JoinHandle<()>>>,
     pub message_task: Option<Arc<JoinHandle<()>>>,
@@ -55,12 +57,12 @@ impl WebhookPool {
     pub async fn post_webhooks(
         topic: &str,
         body: &Value,
-        webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>>,
+        webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>>,
     ) -> Result<(), reqwest::Error> {
         let map = webhooks.try_lock().unwrap();
         for (key, value) in &*map {
             let (_webhook_endpoint, webhook) = value;
-            match webhook.post(topic, body).await {
+            match webhook.try_lock().unwrap().post(topic, body).await {
                 Ok(_) => (),
                 Err(err) => println!("{}: {:?}", key, err),
             }
@@ -79,7 +81,7 @@ impl WebhookPool {
                 .await
                 .expect("observe")
         };
-        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>> =
+        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>> =
             self.webhooks.clone();
         let future = async move {
             while let Some(event) = events.next().await {
@@ -108,7 +110,7 @@ impl WebhookPool {
                 .await
                 .expect("observe")
         };
-        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>> =
+        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>> =
             self.webhooks.clone();
         let future = async move {
             while let Some(event) = events.next().await {
@@ -137,7 +139,7 @@ impl WebhookPool {
                 .await
                 .expect("observe")
         };
-        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Box<dyn Webhook>)>>> =
+        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>> =
             self.webhooks.clone();
         let future = async move {
             while let Some(event) = events.next().await {
@@ -187,7 +189,10 @@ pub async fn post_webhook(
         Box::new(Client::new(webhook_endpoint.url.to_string())) as Box<dyn Webhook>;
     webhook_pool.webhooks.try_lock().unwrap().insert(
         webhook_endpoint.id.as_ref().unwrap().to_string(),
-        (webhook_endpoint.clone(), webhook_client),
+        (
+            webhook_endpoint.clone(),
+            Arc::new(Mutex::new(webhook_client)),
+        ),
     );
     webhook_pool
         .post("webhook", &serde_json::to_value(&webhook_endpoint).unwrap())

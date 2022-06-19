@@ -4,6 +4,9 @@ use reqwest::RequestBuilder;
 use reqwest::{Response, ResponseBuilderExt};
 use serde_json::Value;
 use url::Url;
+use std::any::Any;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[derive(Debug)]
 pub struct TestClient {
@@ -22,10 +25,19 @@ impl TestClient {
     pub fn response(&mut self, response: Value) {
         self.response = response;
     }
+
+    pub fn last_response(&self) -> Value {
+        self.response.clone()
+    }
 }
 
 #[async_trait]
 impl Webhook for TestClient {
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn request(&self, topic: &str, body: &Value) -> RequestBuilder {
         let client = reqwest::Client::new();
         client
@@ -41,6 +53,14 @@ impl Webhook for TestClient {
             .unwrap();
         let response = Response::from(response);
         Ok(response)
+    }
+}
+
+pub fn last_response(client: &Arc<Mutex<Box<dyn Webhook>>>) -> Option<Value> {
+    let client = client.try_lock().unwrap();
+    match client.as_any().downcast_ref::<TestClient>() {
+        Some(c) => Some(c.last_response()),
+        None => None
     }
 }
 

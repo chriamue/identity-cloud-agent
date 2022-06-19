@@ -132,3 +132,25 @@ pub async fn test_rocket() -> Rocket<Build> {
     let didcomm = Box::new(didcomm::test_client::TestClient::new()) as Box<dyn didcomm::DidComm>;
     self::rocket(rocket, config, WebhookPool::default(), didcomm).await
 }
+
+#[cfg(test)]
+pub async fn test_rocket_with_webhook_client(webhook_client: Arc<Mutex<Box<dyn webhook::Webhook>>>) -> Rocket<Build> {
+    let rocket = rocket::build();
+    let figment = rocket.figment();
+    let config: Config = figment.extract().expect("config");
+    let config_ext: ConfigExt = figment.extract().expect("config ext");
+
+    let webhook_endpoint = crate::webhook::WebhookEndpoint {
+        url: config_ext.webhook_url.as_ref().unwrap().to_string(),
+        ..Default::default()
+    };
+
+    let webhook_pool = WebhookPool::default();
+    webhook_pool.webhooks.try_lock().unwrap().insert(
+        webhook_endpoint.id.as_ref().unwrap().to_string(),
+        (webhook_endpoint, webhook_client),
+    );
+
+    let didcomm = Box::new(didcomm::test_client::TestClient::new()) as Box<dyn didcomm::DidComm>;
+    self::rocket(rocket, config, WebhookPool::default(), didcomm).await
+}
