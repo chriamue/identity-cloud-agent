@@ -2,9 +2,11 @@ use crate::didcomm::DidComm;
 use crate::wallet::get_did_endpoint;
 use crate::Config;
 use crate::Wallet;
-use didcomm_mediator::protocols::didexchange::DidExchangeResponseBuilder;
-use didcomm_mediator::protocols::invitation::InvitationBuilder;
-use didcomm_mediator::service::Service;
+use base58::ToBase58;
+use didcomm_mediator::resolver;
+use didcomm_protocols::DidExchangeResponseBuilder;
+use didcomm_protocols::InvitationBuilder;
+use didcomm_protocols::Service;
 use didcomm_rs::Message;
 use identity_iota::client::ExplorerUrl;
 use identity_iota::iota_core::IotaDID;
@@ -80,7 +82,12 @@ pub async fn post_create_invitation(wallet: &State<Arc<Mutex<Wallet>>>) -> Json<
         .build_request()
         .unwrap();
 
-    let services: Vec<Service> = vec![Service::new(did.to_string(), endpoint).await.unwrap()];
+    let recipient_key = resolver::resolve(&did.to_string())
+        .await
+        .unwrap()
+        .to_base58();
+    let services: Vec<Service> =
+        vec![Service::new(did.to_string(), endpoint, vec![recipient_key]).unwrap()];
     let invitation = InvitationBuilder::new()
         .goal("to create a relationship".to_string())
         .goal_code("aries.rel.build".to_string())

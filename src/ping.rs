@@ -2,7 +2,7 @@ use crate::connection::Connections;
 use crate::Wallet;
 use did_key::KeyMaterial;
 use didcomm_mediator::message::{add_return_route_all_header, receive, sign_and_encrypt};
-use didcomm_mediator::protocols::trustping::TrustPingResponseBuilder;
+use didcomm_protocols::TrustPingResponseBuilder;
 use rocket::http::Status;
 use rocket::State;
 use rocket::{post, serde::json::Json};
