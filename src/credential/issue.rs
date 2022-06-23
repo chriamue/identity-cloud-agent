@@ -44,7 +44,7 @@ fn example_attributes() -> Value {
 fn example_credential_preview() -> CredentialPreview {
     CredentialPreview {
         type_: "https://didcomm.org/issue-credential/2.1/credential-preview".to_string(),
-        attrubutes: vec![CredentialAttribute::new(
+        attributes: vec![CredentialAttribute::new(
             "favourite_drink".to_string(),
             "martini".to_string(),
         )],
@@ -60,6 +60,15 @@ pub struct IssueRequest {
     pub connection_id: String,
     #[schemars(example = "example_attributes")]
     pub attributes: Value,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct CreateProposalRequest {
+    #[schemars(example = "example_connection_id")]
+    pub connection_id: String,
+    pub comment: String,
+    #[schemars(example = "example_credential_preview")]
+    pub credential_preview: CredentialPreview,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -132,6 +141,56 @@ pub async fn post_send_offer(
         .await
         .unwrap();
     Json(json!(credential))
+}
+
+#[openapi(tag = "issue-credential v2.1")]
+#[post("/issue-credential-2.1/send-proposal", data = "<request>")]
+pub async fn post_send_proposal_2(
+    wallet: &State<Arc<Mutex<Wallet>>>,
+    connections: &State<Connections>,
+    request: Json<CreateProposalRequest>,
+) -> Result<Json<Value>, Status> {
+    let wallet = wallet.try_lock().unwrap();
+    let did_from = wallet.did_iota().unwrap();
+    let keypair = wallet.keypair();
+    drop(wallet);
+
+    let request = request.into_inner();
+
+    let (did_to, endpoint) = {
+        let connections = connections.connections.lock().await;
+        let connection = connections.get(&request.connection_id).unwrap().clone();
+        (connection.did.to_string(), connection.endpoint)
+    };
+
+    let mut offer = IssueCredentialResponseBuilder::new()
+        .goal_code("issue-vc".to_string())
+        .comment(request.comment)
+        .credential_preview(request.credential_preview)
+        .build_propose_credential()
+        .unwrap();
+    offer = add_return_route_all_header(offer);
+    let message = sign_and_encrypt(&offer, &did_from, &did_to, &keypair)
+        .await
+        .unwrap();
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post(endpoint.to_string())
+        .json(&message)
+        .send()
+        .await
+        .unwrap();
+    /*
+    let json: Value = res.json().await.unwrap();
+    let body_str = serde_json::to_string(&json).unwrap();
+
+    let _received = match receive(&body_str, Some(&keypair.private_key_bytes()), None, None).await {
+        Ok(received) => received,
+        Err(_) => return Err(Status::BadRequest),
+    };
+    */
+    Ok(Json(json!(offer)))
 }
 
 #[openapi(tag = "issue-credential v2.1")]
