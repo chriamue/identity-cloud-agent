@@ -83,6 +83,7 @@ pub async fn rocket(
                 connection::delete_connection,
                 connection::get_connection_endpoints,
                 credential::issue::post_send_offer,
+                credential::issue::post_send_offer_2,
                 credential::get_all_credentials,
                 didcomm::post_endpoint,
                 ledger::get_did_verkey,
