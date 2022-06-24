@@ -80,6 +80,15 @@ pub struct CreateOfferRequest {
     pub credential_preview: CredentialPreview,
 }
 
+#[derive(Serialize, Deserialize, JsonSchema)]
+pub struct SendRequest {
+    #[schemars(example = "example_connection_id")]
+    pub connection_id: String,
+    pub comment: String,
+    #[schemars(example = "example_credential_preview")]
+    pub credential_preview: CredentialPreview,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Issuance {
     #[serde(rename = "type")]
@@ -241,4 +250,71 @@ pub async fn post_send_offer_2(
     };
     */
     Ok(Json(json!(offer)))
+}
+
+#[openapi(tag = "issue-credential v2.1")]
+#[post("/issue-credential-2.1/send", data = "<request>")]
+pub async fn post_send_2(
+    wallet: &State<Arc<Mutex<Wallet>>>,
+    connections: &State<Connections>,
+    request: Json<SendRequest>,
+) -> Result<Json<Value>, Status> {
+    let wallet = wallet.try_lock().unwrap();
+    let iota_did: IotaDID = IotaDID::from_str(&wallet.did_iota().unwrap()).unwrap();
+    let did = iota_did.clone();
+
+    let request = request.into_inner();
+    let conn_id = request.connection_id.to_string();
+
+    let (did_to, endpoint) = {
+        let connections = connections.connections.lock().await;
+        let connection = connections.get(&request.connection_id).unwrap().clone();
+        (connection.did.to_string(), connection.endpoint)
+    };
+
+    let subject_key: KeyPair = KeyPair::new(KeyType::Ed25519).unwrap();
+    let subject_did: IotaDID = IotaDID::new(subject_key.public().as_ref()).unwrap();
+
+    let mut subject: Subject =
+        Subject::from_json_value(json!({"id": Url::parse(subject_did.as_str()).unwrap(), "attributes": request.credential_preview.attributes}))
+            .unwrap();
+
+    let mut credential: Credential = CredentialBuilder::default()
+        .id(Url::parse("https://example.edu/credentials/3732").unwrap())
+        .issuer(Url::parse(did.as_str()).unwrap())
+        .subject(subject)
+        .build()
+        .unwrap();
+
+    wallet
+        .account
+        .as_ref()
+        .unwrap()
+        .sign("sign-0", &mut credential, ProofOptions::default())
+        .await
+        .unwrap();
+    let keypair = wallet.keypair();
+    drop(wallet);
+
+    let attachment = serde_json::to_value(&credential).unwrap();
+    let mut issue = IssueCredentialResponseBuilder::new()
+        .goal_code("issue-vc".to_string())
+        .comment(request.comment)
+        .credential_preview(request.credential_preview)
+        .attachment(attachment)
+        .build_issue_credential()
+        .unwrap();
+    issue = add_return_route_all_header(issue);
+    let message = sign_and_encrypt(&issue, &did.to_string(), &did_to, &keypair)
+        .await
+        .unwrap();
+
+    let client = reqwest::Client::new();
+    let res = client
+        .post(endpoint.to_string())
+        .json(&message)
+        .send()
+        .await
+        .unwrap();
+    Ok(Json(json!(issue)))
 }
