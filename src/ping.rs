@@ -65,11 +65,11 @@ pub async fn post_send_ping(
         let connection = connections.get(&conn_id).unwrap().clone();
         (connection.did.to_string(), connection.endpoint)
     };
-    let mut message = TrustPingResponseBuilder::new().build_ping().unwrap();
-    message = add_return_route_all_header(message);
     let did_from = wallet.did_iota().unwrap();
     let keypair = wallet.keypair();
     drop(wallet);
+    let mut message = TrustPingResponseBuilder::new().build_ping().unwrap();
+    message = add_return_route_all_header(message);
     let ping = sign_and_encrypt(&message, &did_from, &did_to, &keypair)
         .await
         .unwrap();
@@ -95,46 +95,19 @@ pub async fn post_send_ping(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::connection::Connection;
+    use crate::connection::tests::connect;
     use crate::test_rocket;
     use futures::StreamExt;
-    use rocket::http::{ContentType, Status};
+    use rocket::http::Status;
     use rocket::local::asynchronous::Client;
-    use serde_json::{from_value, Value};
 
     #[tokio::test]
     async fn test_send_ping() {
         let client = Client::tracked(test_rocket().await)
             .await
             .expect("valid rocket instance");
-        let response = client.get("/connections").dispatch().await;
-        assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<Value>().await.unwrap();
-        let connections = response.as_array().unwrap();
-        assert_eq!(connections.len(), 0);
 
-        let response = client
-            .post("/out-of-band/create-invitation")
-            .dispatch()
-            .await;
-        assert_eq!(response.status(), Status::Ok);
-        let invitation: Value = response.into_json::<Value>().await.unwrap();
-        let invitation: String = serde_json::to_string(&invitation).unwrap();
-
-        let response = client
-            .post("/out-of-band/receive-invitation")
-            .header(ContentType::JSON)
-            .body(invitation)
-            .dispatch()
-            .await;
-        assert_eq!(response.status(), Status::Ok);
-
-        let response = client.get("/connections").dispatch().await;
-        assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<Value>().await.unwrap();
-        let connections: Vec<Connection> = from_value(response).unwrap();
-
-        let connection_id = connections.first().unwrap().id.to_string();
+        let connection_id = connect(&client).await.unwrap().id;
 
         let response = client
             .post(format!("/connections/{}/send-ping", connection_id))

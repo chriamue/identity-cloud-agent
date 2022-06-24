@@ -38,7 +38,7 @@ mod tests {
         let response = client.get("/credentials").dispatch().await;
         assert_eq!(response.status(), Status::Ok);
         let response = response.into_json::<Value>().await.unwrap();
-        let connections = response.as_array().unwrap();
-        assert_eq!(connections.len(), 0);
+        let credentials = response.as_array().unwrap();
+        assert_eq!(credentials.len(), 0);
     }
 }

@@ -215,13 +215,45 @@ pub async fn delete_connection(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::webhook;
     use crate::{test_rocket, test_rocket_with_webhook_client};
     use rocket::http::{ContentType, Status};
     use rocket::local::asynchronous::Client;
-    use serde_json::Value;
+    use serde_json::{from_value, Value};
+
+    pub async fn connect(client: &Client) -> Result<Connection, Box<dyn std::error::Error>> {
+        let response = client.get("/connections").dispatch().await;
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().await.unwrap();
+        let connections = response.as_array().unwrap();
+        assert_eq!(connections.len(), 0);
+
+        let response = client
+            .post("/out-of-band/create-invitation")
+            .dispatch()
+            .await;
+        assert_eq!(response.status(), Status::Ok);
+        let invitation: Value = response.into_json::<Value>().await.unwrap();
+        let invitation: String = serde_json::to_string(&invitation).unwrap();
+
+        let response = client
+            .post("/out-of-band/receive-invitation")
+            .header(ContentType::JSON)
+            .body(invitation)
+            .dispatch()
+            .await;
+        assert_eq!(response.status(), Status::Ok);
+
+        let response = client.get("/connections").dispatch().await;
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().await.unwrap();
+        let connections: Vec<Connection> = from_value(response).unwrap();
+
+        let connection = connections.last().unwrap().clone();
+        Ok(connection)
+    }
 
     #[tokio::test]
     async fn test_connections() {
@@ -265,31 +297,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_termination() {
+    async fn test_delete_connection() {
         let client = Client::tracked(test_rocket().await)
             .await
             .expect("valid rocket instance");
-        let response = client.get("/connections").dispatch().await;
-        assert_eq!(response.status(), Status::Ok);
-        let response = response.into_json::<Value>().await.unwrap();
-        let connections = response.as_array().unwrap();
-        assert_eq!(connections.len(), 0);
 
-        let response = client
-            .post("/out-of-band/create-invitation")
-            .dispatch()
-            .await;
-        assert_eq!(response.status(), Status::Ok);
-        let invitation: Value = response.into_json::<Value>().await.unwrap();
-        let invitation: String = serde_json::to_string(&invitation).unwrap();
-
-        let response = client
-            .post("/out-of-band/receive-invitation")
-            .header(ContentType::JSON)
-            .body(invitation)
-            .dispatch()
-            .await;
-        assert_eq!(response.status(), Status::Ok);
+        connect(&client).await.unwrap();
 
         let response = client.get("/connections").dispatch().await;
         assert_eq!(response.status(), Status::Ok);

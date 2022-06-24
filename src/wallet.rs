@@ -94,11 +94,18 @@ pub async fn post_did_endpoint(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::test_rocket;
     use rocket::http::Status;
     use rocket::local::asynchronous::Client;
     use serde_json::Value;
+
+    pub async fn get_did(client: &Client) -> Result<String, Box<dyn std::error::Error>> {
+        let response = client.get("/wallet/did/public").dispatch().await;
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().await.unwrap();
+        Ok(response.get("id").unwrap().as_str().unwrap().to_string())
+    }
 
     #[tokio::test]
     async fn test_public_did() {
@@ -109,5 +116,6 @@ mod tests {
         assert_eq!(response.status(), Status::Ok);
         let response = response.into_json::<Value>().await.unwrap();
         assert!(response.get("id").is_some());
+        assert!(get_did(&client).await.is_ok());
     }
 }

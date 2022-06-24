@@ -87,6 +87,7 @@ pub async fn rocket(
                 credential::issue::post_send_offer_2,
                 credential::issue::post_send_2,
                 credential::get_all_credentials,
+                didcomm::didcomm_options,
                 didcomm::post_endpoint,
                 ledger::get_did_verkey,
                 ledger::get_did_endpoint,

@@ -13,7 +13,8 @@ path = "src/bin.rs"
 
 [dependencies]
 async-trait = "0.1"
-base58 = "0.2.0"
+base58 = "0.2"
+base64 = "0.13"
 didcomm-rs = { version = "0.7.2", git = "https://github.com/decentralized-identity/didcomm-rs", default-features = false, features = [
     "raw-crypto",
 ] }

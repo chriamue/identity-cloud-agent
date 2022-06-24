@@ -1,60 +1,75 @@
 use super::{receive, sign_and_encrypt};
-use crate::connection::Connection;
 use crate::test_rocket;
+use crate::wallet::tests::get_did;
 use crate::Config;
 use base58::FromBase58;
+use didcomm_mediator::message::add_return_route_all_header;
+use didcomm_protocols::IssueCredentialResponseBuilder;
+use didcomm_protocols::TrustPingResponseBuilder;
 use didcomm_rs::Message;
-use identity_iota::account::Account;
-use identity_iota::account::AutoSave;
-use identity_iota::account::IdentitySetup;
-use identity_iota::account::MethodContent;
-use identity_iota::account::Result;
+use identity_iota::account::{Account, AutoSave, IdentitySetup, MethodContent, Result};
 use identity_iota::account_storage::MemStore;
+use identity_iota::core::{FromJson, Url};
+use identity_iota::credential::{Credential, CredentialBuilder, Subject};
 use identity_iota::prelude::KeyPair;
 use identity_iota::prelude::*;
-use rocket::http::{ContentType, Status};
+use rocket::http::Status;
 use rocket::local::asynchronous::Client;
-use serde_json::{from_value, Value};
+use serde_json::{json, Value};
 
 #[tokio::test]
-async fn test_send_ping() {
+async fn test_receive_ping() {
     let client = Client::tracked(test_rocket().await)
         .await
         .expect("valid rocket instance");
-    let response = client.get("/connections").dispatch().await;
+
+    let did = get_did(&client).await.unwrap();
+
+    let mut message = TrustPingResponseBuilder::new().build_ping().unwrap();
+    message = add_return_route_all_header(message);
+    message = message.from(&did).to(&[&did]);
+
+    let response = client.post(format!("/")).json(&message).dispatch().await;
+    assert_eq!(response.status(), Status::Ok);
+}
+
+#[tokio::test]
+async fn test_receive_issue_credential() {
+    let client = Client::tracked(test_rocket().await)
+        .await
+        .expect("valid rocket instance");
+
+    let did = get_did(&client).await.unwrap();
+
+    let subject: Subject = Subject::from_json_value(
+        json!({"id": Url::parse(did.as_str()).unwrap(), "attributes": "None".to_string()}),
+    )
+    .unwrap();
+
+    let credential: Credential = CredentialBuilder::default()
+        .id(Url::parse("https://example.edu/credentials/3732").unwrap())
+        .issuer(Url::parse(did.as_str()).unwrap())
+        .subject(subject)
+        .build()
+        .unwrap();
+
+    let attachment = serde_json::to_value(&credential).unwrap();
+    let mut message = IssueCredentialResponseBuilder::new()
+        .goal_code("issue-vc".to_string())
+        .attachment(attachment)
+        .build_issue_credential()
+        .unwrap();
+    message = add_return_route_all_header(message);
+    message = message.from(&did).to(&[&did]);
+
+    let response = client.post(format!("/")).json(&message).dispatch().await;
+    assert_eq!(response.status(), Status::Ok);
+
+    let response = client.get("/credentials").dispatch().await;
     assert_eq!(response.status(), Status::Ok);
     let response = response.into_json::<Value>().await.unwrap();
-    let connections = response.as_array().unwrap();
-    assert_eq!(connections.len(), 0);
-
-    let response = client
-        .post("/out-of-band/create-invitation")
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Ok);
-    let invitation: Value = response.into_json::<Value>().await.unwrap();
-    let invitation: String = serde_json::to_string(&invitation).unwrap();
-
-    let response = client
-        .post("/out-of-band/receive-invitation")
-        .header(ContentType::JSON)
-        .body(invitation)
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::Ok);
-
-    let response = client.get("/connections").dispatch().await;
-    assert_eq!(response.status(), Status::Ok);
-    let response = response.into_json::<Value>().await.unwrap();
-    let connections: Vec<Connection> = from_value(response).unwrap();
-
-    let connection_id = connections.first().unwrap().id.to_string();
-
-    let response = client
-        .post(format!("/connections/{}/send-ping", connection_id))
-        .dispatch()
-        .await;
-    assert_eq!(response.status(), Status::InternalServerError);
+    let credentials = response.as_array().unwrap();
+    assert_eq!(credentials.len(), 1);
 }
 
 #[tokio::test]

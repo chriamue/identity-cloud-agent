@@ -1,7 +1,6 @@
 use crate::connection::Connections;
 use crate::wallet::Wallet;
-use did_key::KeyMaterial;
-use didcomm_mediator::message::{add_return_route_all_header, receive, sign_and_encrypt};
+use didcomm_mediator::message::{add_return_route_all_header, sign_and_encrypt};
 use didcomm_protocols::{CredentialAttribute, CredentialPreview, IssueCredentialResponseBuilder};
 use identity_iota::core::FromJson;
 use identity_iota::core::Url;
@@ -184,7 +183,7 @@ pub async fn post_send_proposal_2(
         .unwrap();
 
     let client = reqwest::Client::new();
-    let res = client
+    let _res = client
         .post(endpoint.to_string())
         .json(&message)
         .send()
@@ -234,22 +233,18 @@ pub async fn post_send_offer_2(
         .unwrap();
 
     let client = reqwest::Client::new();
-    let res = client
+    match client
         .post(endpoint.to_string())
         .json(&message)
         .send()
         .await
-        .unwrap();
-    /*
-    let json: Value = res.json().await.unwrap();
-    let body_str = serde_json::to_string(&json).unwrap();
-
-    let _received = match receive(&body_str, Some(&keypair.private_key_bytes()), None, None).await {
-        Ok(received) => received,
-        Err(_) => return Err(Status::BadRequest),
-    };
-    */
-    Ok(Json(json!(offer)))
+    {
+        Ok(_) => Ok(Json(json!(offer))),
+        Err(err) => {
+            println!("{:?}", err);
+            Err(Status::InternalServerError)
+        }
+    }
 }
 
 #[openapi(tag = "issue-credential v2.1")]
@@ -264,7 +259,6 @@ pub async fn post_send_2(
     let did = iota_did.clone();
 
     let request = request.into_inner();
-    let conn_id = request.connection_id.to_string();
 
     let (did_to, endpoint) = {
         let connections = connections.connections.lock().await;
@@ -275,7 +269,7 @@ pub async fn post_send_2(
     let subject_key: KeyPair = KeyPair::new(KeyType::Ed25519).unwrap();
     let subject_did: IotaDID = IotaDID::new(subject_key.public().as_ref()).unwrap();
 
-    let mut subject: Subject =
+    let subject: Subject =
         Subject::from_json_value(json!({"id": Url::parse(subject_did.as_str()).unwrap(), "attributes": request.credential_preview.attributes}))
             .unwrap();
 
@@ -293,6 +287,7 @@ pub async fn post_send_2(
         .sign("sign-0", &mut credential, ProofOptions::default())
         .await
         .unwrap();
+    let did_from = wallet.did_iota().unwrap();
     let keypair = wallet.keypair();
     drop(wallet);
 
@@ -305,7 +300,7 @@ pub async fn post_send_2(
         .build_issue_credential()
         .unwrap();
     issue = add_return_route_all_header(issue);
-    let message = sign_and_encrypt(&issue, &did.to_string(), &did_to, &keypair)
+    let message = sign_and_encrypt(&issue, &did_from, &did_to, &keypair)
         .await
         .unwrap();
 
@@ -316,5 +311,8 @@ pub async fn post_send_2(
         .send()
         .await
         .unwrap();
-    Ok(Json(json!(issue)))
+    match res.json::<Value>().await.is_ok() {
+        true => Ok(Json(json!(issue))),
+        false => Err(Status::InternalServerError),
+    }
 }
