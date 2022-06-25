@@ -153,6 +153,26 @@ pub async fn post_send_offer(
     Json(json!(credential))
 }
 
+pub async fn prepare_proposal_request(
+    wallet: &Wallet,
+    did_to: String,
+    request: CreateProposalRequest,
+) -> Result<(Message, Value), Box<dyn std::error::Error>> {
+    let mut proposal = IssueCredentialResponseBuilder::new()
+        .goal_code("issue-vc".to_string())
+        .comment(request.comment)
+        .credential_preview(request.credential_preview)
+        .build_propose_credential()
+        .unwrap();
+    proposal = add_return_route_all_header(proposal);
+    let did_from = wallet.did_iota().unwrap();
+    let keypair = wallet.keypair();
+    let message = sign_and_encrypt(&proposal, &did_from, &did_to, &keypair)
+        .await
+        .unwrap();
+    Ok((proposal, message))
+}
+
 /// # Send issuer a credential proposal
 #[openapi(tag = "issue-credential v2.1")]
 #[post("/issue-credential-2.1/send-proposal", data = "<request>")]
@@ -161,37 +181,14 @@ pub async fn post_send_proposal_2(
     connections: &State<Connections>,
     request: Json<CreateProposalRequest>,
 ) -> Result<Json<Value>, Status> {
-    let (did_from, keypair) = {
-        let wallet = wallet.try_lock().unwrap();
-        let did_from = wallet.did_iota().unwrap();
-        let keypair = wallet.keypair();
-        (did_from, keypair)
-    };
-
-    let request = request.into_inner();
-
     let (did_to, endpoint) = {
         let connections = connections.connections.lock().await;
         let connection = connections.get(&request.connection_id).unwrap().clone();
         (connection.did.to_string(), connection.endpoint)
     };
+    let request = request.into_inner();
 
-    let mut offer = IssueCredentialResponseBuilder::new()
-        .goal_code("issue-vc".to_string())
-        .comment(request.comment)
-        .credential_preview(request.credential_preview)
-        .build_propose_credential()
-        .unwrap();
-    offer = add_return_route_all_header(offer);
-    let message = sign_and_encrypt(&offer, &did_from, &did_to, &keypair)
-        .await
-        .unwrap();
-
-    let client = reqwest::Client::new();
-    let _res = client
-        .post(endpoint.to_string())
-        .json(&message)
-        .send()
+    let (offer, message) = prepare_proposal_request(&wallet.try_lock().unwrap(), did_to, request)
         .await
         .unwrap();
 
@@ -208,6 +205,26 @@ pub async fn post_send_proposal_2(
     }
 }
 
+pub async fn prepare_offer_request(
+    wallet: &Wallet,
+    did_to: String,
+    request: CreateOfferRequest,
+) -> Result<(Message, Value), Box<dyn std::error::Error>> {
+    let mut offer = IssueCredentialResponseBuilder::new()
+        .goal_code("issue-vc".to_string())
+        .comment(request.comment)
+        .credential_preview(request.credential_preview)
+        .build_offer_credential()
+        .unwrap();
+    offer = add_return_route_all_header(offer);
+    let did_from = wallet.did_iota().unwrap();
+    let keypair = wallet.keypair();
+    let message = sign_and_encrypt(&offer, &did_from, &did_to, &keypair)
+        .await
+        .unwrap();
+    Ok((offer, message))
+}
+
 /// # Send holder a credential offer, independent of any proposal
 #[openapi(tag = "issue-credential v2.1")]
 #[post("/issue-credential-2.1/send-offer", data = "<request>")]
@@ -216,29 +233,15 @@ pub async fn post_send_offer_2(
     connections: &State<Connections>,
     request: Json<CreateOfferRequest>,
 ) -> Result<Json<Value>, Status> {
-    let (did_from, keypair) = {
-        let wallet = wallet.try_lock().unwrap();
-        let did_from = wallet.did_iota().unwrap();
-        let keypair = wallet.keypair();
-        (did_from, keypair)
-    };
-
-    let request = request.into_inner();
-
     let (did_to, endpoint) = {
         let connections = connections.connections.lock().await;
         let connection = connections.get(&request.connection_id).unwrap().clone();
         (connection.did.to_string(), connection.endpoint)
     };
 
-    let mut offer = IssueCredentialResponseBuilder::new()
-        .goal_code("issue-vc".to_string())
-        .comment(request.comment)
-        .credential_preview(request.credential_preview)
-        .build_offer_credential()
-        .unwrap();
-    offer = add_return_route_all_header(offer);
-    let message = sign_and_encrypt(&offer, &did_from, &did_to, &keypair)
+    let request = request.into_inner();
+
+    let (offer, message) = prepare_offer_request(&wallet.try_lock().unwrap(), did_to, request)
         .await
         .unwrap();
 
@@ -353,7 +356,50 @@ mod tests {
             prepare_issue_credential_request(&wallet, did_to.to_string(), request)
                 .await
                 .unwrap();
-        println!("{:?}", message);
         assert!(message.get_attachments().next().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_prepare_offer_request() {
+        let rocket = test_rocket().await;
+        let figment = rocket.figment();
+        let config: Config = figment.extract().expect("config");
+        let wallet = Wallet::new_from_config(&config).await.unwrap();
+        let request = CreateOfferRequest {
+            connection_id: "".to_string(),
+            comment: "".to_string(),
+            credential_preview: example_credential_preview(),
+        };
+        let did_to = wallet.did_iota().unwrap();
+        let (message, _value) = prepare_offer_request(&wallet, did_to.to_string(), request)
+            .await
+            .unwrap();
+        assert!(message
+            .get_application_params()
+            .filter(|(key, _)| *key == "credential_preview")
+            .next()
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn test_prepare_proposal_request() {
+        let rocket = test_rocket().await;
+        let figment = rocket.figment();
+        let config: Config = figment.extract().expect("config");
+        let wallet = Wallet::new_from_config(&config).await.unwrap();
+        let request = CreateProposalRequest {
+            connection_id: "".to_string(),
+            comment: "".to_string(),
+            credential_preview: example_credential_preview(),
+        };
+        let did_to = wallet.did_iota().unwrap();
+        let (message, _value) = prepare_proposal_request(&wallet, did_to.to_string(), request)
+            .await
+            .unwrap();
+        assert!(message
+            .get_application_params()
+            .filter(|(key, _)| *key == "credential_preview")
+            .next()
+            .is_some());
     }
 }
