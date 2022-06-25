@@ -28,7 +28,7 @@ pub mod wallet;
 pub mod webhook;
 pub use configext::ConfigExt;
 use connection::{ConnectionEvents, Connections};
-use credential::Credentials;
+use credential::{Credentials, IssueCredentialEvents};
 pub use didcomm::DidComm;
 use message::MessageEvents;
 use ping::PingEvents;
@@ -58,6 +58,8 @@ pub async fn rocket(
 
     let connection_events: Arc<Mutex<ConnectionEvents>> =
         Arc::new(Mutex::new(ConnectionEvents::new()));
+    let issue_credential_events: Arc<Mutex<IssueCredentialEvents>> =
+        Arc::new(Mutex::new(IssueCredentialEvents::new()));
     let ping_events: Arc<Mutex<PingEvents>> = Arc::new(Mutex::new(PingEvents::new()));
     let message_events: Arc<Mutex<MessageEvents>> = Arc::new(Mutex::new(MessageEvents::new()));
 
@@ -65,6 +67,9 @@ pub async fn rocket(
 
     webhook_pool
         .spawn_connection_events(connection_events.clone())
+        .await;
+    webhook_pool
+        .spawn_issue_credential_events(issue_credential_events.clone())
         .await;
     webhook_pool.spawn_ping_events(ping_events.clone()).await;
     webhook_pool
@@ -124,6 +129,7 @@ pub async fn rocket(
         .manage(webhook_pool)
         .manage(didcomm)
         .manage(connection_events)
+        .manage(issue_credential_events)
         .manage(ping_events)
         .manage(message_events)
 }

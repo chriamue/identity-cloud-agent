@@ -1,5 +1,7 @@
 use crate::connection::{invitation::Invitation, Connections, Termination, TerminationResponse};
-use crate::credential::{issue::Issuance, Credentials};
+use crate::credential::{
+    issue::Issuance, Credentials, IssueCredentialEvent, IssueCredentialEvents,
+};
 use crate::message::{MessageEvent, MessageEvents};
 use crate::ping::{PingEvent, PingEvents};
 use crate::wallet::Wallet;
@@ -56,6 +58,7 @@ pub async fn post_endpoint(
     connections: &State<Connections>,
     credentials: &State<Credentials>,
     ping_events: &State<Arc<Mutex<PingEvents>>>,
+    issue_credential_events: &State<Arc<Mutex<IssueCredentialEvents>>>,
     message_events: &State<Arc<Mutex<MessageEvents>>>,
     body: Json<Value>,
 ) -> Result<Json<Value>, Status> {
@@ -109,6 +112,19 @@ pub async fn post_endpoint(
                 let credential = std::str::from_utf8(&credential).unwrap();
                 let credential: Credential = serde_json::from_str(credential).unwrap();
 
+                issue_credential_events
+                    .try_lock()
+                    .unwrap()
+                    .send(IssueCredentialEvent::IssueCredentialReceived(
+                        received
+                            .get_didcomm_header()
+                            .from
+                            .as_ref()
+                            .unwrap()
+                            .to_string(),
+                        serde_json::to_value(&credential).unwrap(),
+                    ))
+                    .await;
                 info!("issuance: {:?}", credential);
                 let mut lock = credentials.credentials.lock().await;
 
@@ -155,7 +171,7 @@ pub async fn post_endpoint(
 
 pub async fn sign_and_encrypt(
     message: &Message,
-    did_from: &String,
+    did_from: &str,
     did_to: &String,
     key: &KeyPair,
 ) -> Result<Value, Box<dyn std::error::Error>> {
@@ -190,7 +206,7 @@ pub async fn sign_and_encrypt(
 }
 
 pub async fn receive(
-    message: &String,
+    message: &str,
     encryption_recipient_private_key: &[u8],
     encryption_sender_public_key: Option<Vec<u8>>,
 ) -> Result<Message, didcomm_rs::Error> {

@@ -1,4 +1,5 @@
 use crate::connection::ConnectionEvents;
+use crate::credential::IssueCredentialEvents;
 use crate::message::MessageEvents;
 use crate::ping::PingEvents;
 use async_trait::async_trait;
@@ -23,6 +24,9 @@ pub mod test_client;
 
 pub use client::Client;
 
+pub type WebhookHashMap =
+    Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>>;
+
 #[async_trait]
 pub trait Webhook: core::fmt::Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
@@ -32,8 +36,9 @@ pub trait Webhook: core::fmt::Debug + Send + Sync {
 
 #[derive(Debug, Clone)]
 pub struct WebhookPool {
-    pub webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>>,
+    pub webhooks: WebhookHashMap,
     pub connection_task: Option<Arc<JoinHandle<()>>>,
+    pub issue_credential_task: Option<Arc<JoinHandle<()>>>,
     pub ping_task: Option<Arc<JoinHandle<()>>>,
     pub message_task: Option<Arc<JoinHandle<()>>>,
 }
@@ -43,6 +48,7 @@ impl Default for WebhookPool {
         WebhookPool {
             webhooks: Arc::new(Mutex::new(HashMap::new())),
             connection_task: None,
+            issue_credential_task: None,
             ping_task: None,
             message_task: None,
         }
@@ -57,7 +63,7 @@ impl WebhookPool {
     pub async fn post_webhooks(
         topic: &str,
         body: &Value,
-        webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>>,
+        webhooks: WebhookHashMap,
     ) -> Result<(), reqwest::Error> {
         let map = webhooks.try_lock().unwrap();
         for (key, value) in &*map {
@@ -81,8 +87,7 @@ impl WebhookPool {
                 .await
                 .expect("observe")
         };
-        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>> =
-            self.webhooks.clone();
+        let webhooks: WebhookHashMap = self.webhooks.clone();
         let future = async move {
             while let Some(event) = events.next().await {
                 match Self::post_webhooks(
@@ -102,6 +107,37 @@ impl WebhookPool {
         self.connection_task = Some(Arc::new(task));
     }
 
+    pub async fn spawn_issue_credential_events(
+        &mut self,
+        issue_credential_events: Arc<Mutex<IssueCredentialEvents>>,
+    ) {
+        let mut events = {
+            let mut issue_credential_events = issue_credential_events.try_lock().unwrap();
+            issue_credential_events
+                .observe(Channel::Bounded(20).into())
+                .await
+                .expect("observe")
+        };
+        let webhooks: WebhookHashMap = self.webhooks.clone();
+        let future = async move {
+            while let Some(event) = events.next().await {
+                match Self::post_webhooks(
+                    "issue_credential_v2_0",
+                    &serde_json::to_value(&event).unwrap(),
+                    webhooks.clone(),
+                )
+                .await
+                {
+                    Ok(_) => (),
+                    Err(err) => println!("{:?}", err),
+                }
+            }
+            println!("end async issue credential future events");
+        };
+        let task = tokio::task::spawn(future);
+        self.issue_credential_task = Some(Arc::new(task));
+    }
+
     pub async fn spawn_ping_events(&mut self, ping_events: Arc<Mutex<PingEvents>>) {
         let mut events = {
             let mut ping_events = ping_events.try_lock().unwrap();
@@ -110,8 +146,7 @@ impl WebhookPool {
                 .await
                 .expect("observe")
         };
-        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>> =
-            self.webhooks.clone();
+        let webhooks: WebhookHashMap = self.webhooks.clone();
         let future = async move {
             while let Some(event) = events.next().await {
                 match Self::post_webhooks(
@@ -139,8 +174,7 @@ impl WebhookPool {
                 .await
                 .expect("observe")
         };
-        let webhooks: Arc<Mutex<HashMap<String, (WebhookEndpoint, Arc<Mutex<Box<dyn Webhook>>>)>>> =
-            self.webhooks.clone();
+        let webhooks: WebhookHashMap = self.webhooks.clone();
         let future = async move {
             while let Some(event) = events.next().await {
                 match Self::post_webhooks(

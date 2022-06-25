@@ -7,7 +7,11 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+pub mod events;
 pub mod issue;
+
+pub use events::IssueCredentialEvent;
+pub use events::IssueCredentialEvents;
 
 #[derive(Default)]
 pub struct Credentials {

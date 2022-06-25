@@ -96,6 +96,7 @@ pub struct Issuance {
     pub signed_credential: Credential,
 }
 
+/// # Send holder a credential offer, independent of any proposal
 #[openapi(tag = "issue-credential")]
 #[post("/issue-credential/send-offer", data = "<issue_request>")]
 pub async fn post_send_offer(
@@ -151,6 +152,7 @@ pub async fn post_send_offer(
     Json(json!(credential))
 }
 
+/// # Send issuer a credential proposal
 #[openapi(tag = "issue-credential v2.1")]
 #[post("/issue-credential-2.1/send-proposal", data = "<request>")]
 pub async fn post_send_proposal_2(
@@ -201,6 +203,7 @@ pub async fn post_send_proposal_2(
     Ok(Json(json!(offer)))
 }
 
+/// # Send holder a credential offer, independent of any proposal
 #[openapi(tag = "issue-credential v2.1")]
 #[post("/issue-credential-2.1/send-offer", data = "<request>")]
 pub async fn post_send_offer_2(
@@ -247,6 +250,7 @@ pub async fn post_send_offer_2(
     }
 }
 
+/// # Send holder a credential
 #[openapi(tag = "issue-credential v2.1")]
 #[post("/issue-credential-2.1/send", data = "<request>")]
 pub async fn post_send_2(
