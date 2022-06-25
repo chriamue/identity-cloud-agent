@@ -31,7 +31,11 @@ pub type WebhookHashMap =
 pub trait Webhook: core::fmt::Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
     fn request(&self, topic: &str, body: &Value) -> RequestBuilder;
-    async fn post(&self, topic: &str, body: &Value) -> Result<reqwest::Response, reqwest::Error>;
+    async fn post(
+        &mut self,
+        topic: &str,
+        body: &Value,
+    ) -> Result<reqwest::Response, reqwest::Error>;
 }
 
 #[derive(Debug, Clone)]

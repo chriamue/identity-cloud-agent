@@ -27,7 +27,11 @@ impl Webhook for Client {
             .json(body)
     }
 
-    async fn post(&self, topic: &str, body: &Value) -> Result<reqwest::Response, reqwest::Error> {
+    async fn post(
+        &mut self,
+        topic: &str,
+        body: &Value,
+    ) -> Result<reqwest::Response, reqwest::Error> {
         self.request(topic, body).send().await
     }
 }

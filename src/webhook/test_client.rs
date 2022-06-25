@@ -43,13 +43,19 @@ impl Webhook for TestClient {
             .post(format!("{}/topic/{}", self.url, topic))
             .json(body)
     }
-    async fn post(&self, topic: &str, _body: &Value) -> Result<reqwest::Response, reqwest::Error> {
+    async fn post(
+        &mut self,
+        topic: &str,
+        body: &Value,
+    ) -> Result<reqwest::Response, reqwest::Error> {
+        self.response(body.clone());
         let url = Url::parse(&format!("{}/topic/{}", self.url, topic)).unwrap();
         let response = Builder::new()
             .status(200)
             .url(url.clone())
             .body(serde_json::to_string(&self.response).unwrap())
             .unwrap();
+
         let response = Response::from(response);
         Ok(response)
     }
@@ -59,7 +65,10 @@ pub fn last_response(client: &Arc<Mutex<Box<dyn Webhook>>>) -> Option<Value> {
     let client = client.try_lock().unwrap();
     match client.as_any().downcast_ref::<TestClient>() {
         Some(c) => Some(c.last_response()),
-        None => None,
+        None => {
+            println!("is none");
+            None
+        }
     }
 }
 
@@ -79,5 +88,14 @@ mod tests {
             post.build().unwrap().url().as_str(),
             "http://example.com/topic/foo"
         );
+    }
+
+    #[tokio::test]
+    async fn test_last_response() {
+        let response = json!({ "hello": "world!"});
+        let mut client = TestClient::new("http://example.com".to_string());
+
+        let _post = client.post("foo", &response).await.unwrap();
+        assert_eq!(client.last_response(), response);
     }
 }

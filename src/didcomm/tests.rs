@@ -1,7 +1,9 @@
 use super::{receive, sign_and_encrypt};
-use crate::test_rocket;
+use crate::credential::IssueCredentialEvent;
 use crate::wallet::tests::get_did;
+use crate::webhook;
 use crate::Config;
+use crate::{test_rocket, test_rocket_with_webhook_client};
 use base58::FromBase58;
 use didcomm_mediator::message::add_return_route_all_header;
 use didcomm_protocols::IssueCredentialResponseBuilder;
@@ -16,6 +18,8 @@ use identity_iota::prelude::*;
 use rocket::http::Status;
 use rocket::local::asynchronous::Client;
 use serde_json::{json, Value};
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[tokio::test]
 async fn test_receive_ping() {
@@ -35,7 +39,11 @@ async fn test_receive_ping() {
 
 #[tokio::test]
 async fn test_receive_issue_credential() {
-    let client = Client::tracked(test_rocket().await)
+    let webhook_client = Box::new(webhook::test_client::TestClient::new(
+        "http://localhost".to_string(),
+    )) as Box<dyn webhook::Webhook>;
+    let webhook_client = Arc::new(Mutex::new(webhook_client));
+    let client = Client::tracked(test_rocket_with_webhook_client(webhook_client.clone()).await)
         .await
         .expect("valid rocket instance");
 
@@ -52,6 +60,12 @@ async fn test_receive_issue_credential() {
         .subject(subject)
         .build()
         .unwrap();
+
+    let webhook_response = serde_json::to_value(IssueCredentialEvent::IssueCredentialReceived(
+        did.to_string(),
+        serde_json::to_value(&credential).unwrap(),
+    ))
+    .unwrap();
 
     let attachment = serde_json::to_value(&credential).unwrap();
     let mut message = IssueCredentialResponseBuilder::new()
@@ -70,6 +84,10 @@ async fn test_receive_issue_credential() {
     let response = response.into_json::<Value>().await.unwrap();
     let credentials = response.as_array().unwrap();
     assert_eq!(credentials.len(), 1);
+    assert_eq!(
+        webhook::test_client::last_response(&webhook_client).unwrap(),
+        webhook_response
+    );
 }
 
 #[tokio::test]

@@ -164,5 +164,5 @@ pub async fn test_rocket_with_webhook_client(
     );
 
     let didcomm = Box::new(didcomm::test_client::TestClient::new()) as Box<dyn didcomm::DidComm>;
-    self::rocket(rocket, config, WebhookPool::default(), didcomm).await
+    self::rocket(rocket, config, webhook_pool, didcomm).await
 }
