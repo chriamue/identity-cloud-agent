@@ -1,7 +1,5 @@
 use crate::connection::{invitation::Invitation, Connections, Termination, TerminationResponse};
-use crate::credential::{
-    issue::Issuance, Credentials, IssueCredentialEvent, IssueCredentialEvents,
-};
+use crate::credential::{Credentials, IssueCredentialEvent, IssueCredentialEvents};
 use crate::message::{MessageEvent, MessageEvents};
 use crate::ping::{PingEvent, PingEvents};
 use crate::wallet::Wallet;
@@ -155,15 +153,6 @@ pub async fn post_endpoint(
                 body: Value::default(),
             };
             Ok(Json(json!(termination)))
-        }
-        "iota/issuance/0.1/issuance" => {
-            let issuance: Issuance = serde_json::from_str(&received.get_body().unwrap()).unwrap();
-            let credential = issuance.signed_credential;
-            info!("issuance: {:?}", credential);
-            let mut lock = credentials.credentials.lock().await;
-
-            lock.insert(credential.id.clone().unwrap().to_string(), credential);
-            Ok(Json(json!({})))
         }
         _ => Ok(Json(json!({}))),
     }
