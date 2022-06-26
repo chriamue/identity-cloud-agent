@@ -82,7 +82,7 @@ async fn test_receive_issue_credential() {
     let response = client.get("/credentials").dispatch().await;
     assert_eq!(response.status(), Status::Ok);
     let response = response.into_json::<Value>().await.unwrap();
-    let credentials = response.as_array().unwrap();
+    let credentials = response.get("result").unwrap().as_array().unwrap();
     assert_eq!(credentials.len(), 1);
     assert_eq!(
         webhook::test_client::last_response(&webhook_client).unwrap(),

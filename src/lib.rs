@@ -96,6 +96,7 @@ pub async fn rocket(
                 didcomm::post_endpoint,
                 ledger::get_did_verkey,
                 ledger::get_did_endpoint,
+                jsonld::post_sign,
                 jsonld::post_verify,
                 message::post_send_message,
                 ping::post_send_ping,
