@@ -40,7 +40,7 @@ pub fn example_attributes() -> Value {
     })
 }
 
-fn example_credential_preview() -> CredentialPreview {
+pub fn example_credential_preview() -> CredentialPreview {
     CredentialPreview {
         type_: "https://didcomm.org/issue-credential/2.1/credential-preview".to_string(),
         attributes: vec![CredentialAttribute::new(

@@ -14,6 +14,7 @@ pub mod configext;
 pub mod connection;
 pub mod credential;
 pub mod didcomm;
+pub mod jsonld;
 pub mod keyutils;
 pub mod ledger;
 pub mod message;
@@ -95,6 +96,7 @@ pub async fn rocket(
                 didcomm::post_endpoint,
                 ledger::get_did_verkey,
                 ledger::get_did_endpoint,
+                jsonld::post_verify,
                 message::post_send_message,
                 ping::post_send_ping,
                 presentation::proposal::post_send_proposal,
