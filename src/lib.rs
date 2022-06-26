@@ -114,6 +114,7 @@ pub async fn rocket(
                 wallet::post_did_endpoint,
                 webhook::get_all_webhooks,
                 webhook::post_webhook,
+                webhook::delete_webhook,
             ],
         )
         .mount(

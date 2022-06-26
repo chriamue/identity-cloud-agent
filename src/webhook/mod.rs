@@ -4,6 +4,7 @@ use crate::message::MessageEvents;
 use crate::ping::PingEvents;
 use async_trait::async_trait;
 use reqwest::RequestBuilder;
+use rocket::http::Status;
 use rocket::State;
 use rocket::{post, serde::json::Json};
 use rocket_okapi::openapi;
@@ -239,12 +240,26 @@ pub async fn post_webhook(
     Json(webhook_endpoint)
 }
 
+/// # Delete a registered webhook
+#[openapi(tag = "webhook")]
+#[delete("/webhook/<webhook_id>")]
+pub async fn delete_webhook(webhook_pool: &State<WebhookPool>, webhook_id: String) -> Status {
+    webhook_pool
+        .webhooks
+        .try_lock()
+        .unwrap()
+        .remove(&webhook_id)
+        .unwrap();
+    Status::Ok
+}
+
 #[cfg(test)]
 mod tests {
     use crate::test_rocket;
     use crate::webhook::WebhookEndpoint;
     use rocket::http::{ContentType, Status};
     use rocket::local::asynchronous::Client;
+    use serde_json::Value;
 
     #[tokio::test]
     async fn test_post_webhook() {
@@ -264,5 +279,45 @@ mod tests {
         assert_eq!(response.status(), Status::Ok);
         let response = response.into_json::<WebhookEndpoint>().await.unwrap();
         assert!(response.id.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_delete_webhook() {
+        let client = Client::tracked(test_rocket().await)
+            .await
+            .expect("valid rocket instance");
+
+        let mut webhook = WebhookEndpoint::default();
+        webhook.id = None;
+
+        let response = client.get("/webhooks").json(&webhook).dispatch().await;
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().await.unwrap();
+        assert_eq!(response.as_array().unwrap().len(), 0);
+
+        let response = client
+            .post("/webhook")
+            .header(ContentType::JSON)
+            .json(&WebhookEndpoint::default())
+            .dispatch()
+            .await;
+        assert_eq!(response.status(), Status::Ok);
+
+        let response = client.get("/webhooks").json(&webhook).dispatch().await;
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().await.unwrap();
+        assert_eq!(response.as_array().unwrap().len(), 1);
+        let webhook_id = response[0].get("id").unwrap().as_str().unwrap();
+
+        let response = client
+            .delete(format!("/webhook/{}", webhook_id))
+            .dispatch()
+            .await;
+        assert_eq!(response.status(), Status::Ok);
+
+        let response = client.get("/webhooks").json(&webhook).dispatch().await;
+        assert_eq!(response.status(), Status::Ok);
+        let response = response.into_json::<Value>().await.unwrap();
+        assert_eq!(response.as_array().unwrap().len(), 0);
     }
 }
