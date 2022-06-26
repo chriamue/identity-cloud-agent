@@ -239,10 +239,13 @@ pub async fn post_send_2(
         (connection.did.to_string(), connection.endpoint)
     };
     let request = request.into_inner();
-    let wallet = wallet.try_lock().unwrap();
-    let (issue, request) = prepare_issue_credential_request(&wallet, did_to, request)
-        .await
-        .unwrap();
+
+    let (issue, request) = {
+        let wallet = wallet.try_lock().unwrap();
+        prepare_issue_credential_request(&wallet, did_to, request)
+            .await
+            .unwrap()
+    };
 
     let client = reqwest::Client::new();
     let res = client

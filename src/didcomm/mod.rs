@@ -63,10 +63,9 @@ pub async fn post_endpoint(
     let body_str = serde_json::to_string(&body.into_inner()).unwrap();
     let (my_did, private_key) = {
         let wallet = wallet.try_lock().unwrap();
-        (
-            wallet.did_iota().unwrap(),
-            wallet.keypair().private_key_bytes(),
-        )
+        let my_did = wallet.did_iota().unwrap();
+        let keypair = wallet.keypair().private_key_bytes();
+        (my_did, keypair)
     };
     let received: Message = match receive(&body_str, &private_key, None).await {
         Ok(received) => received,
