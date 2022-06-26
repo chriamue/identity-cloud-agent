@@ -101,6 +101,7 @@ pub async fn rocket(
                 message::post_send_message,
                 ping::post_send_ping,
                 presentation::proposal::post_send_proposal,
+                presentation::post_send_presentation,
                 resolver::get_resolve,
                 schema::post_schemas,
                 schema::get_all_schemas,
