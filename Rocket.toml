@@ -1,8 +1,8 @@
 [default]
 ident = "identity-cloud-agent"
-key_seed = "F1HNoGf2TCapigNMR6bcZYvUW3HZTFL7eUMXnciQeHhE"
-did_key = "did:iota:ELp2hhmcZqRTJp6M9PXYonZ8e9WVjqE9bG55S5BJPhih"
-did_iota = "did:iota:ELp2hhmcZqRTJp6M9PXYonZ8e9WVjqE9bG55S5BJPhih"
+key_seed = "HkNpaMBLrzdvZWs2XPQ5bRuD5K7Zgri3dTZ8ozpKJXN1"
+did_key = "did:key:z6LSh8BQNe6R24k5M8a6YmPqsZFawUhngwadaiVeGBACqg9s"
+did_iota = "did:iota:5RVX4r9db14biFqwoaBJfWFwFtVXs4bEjVvJBVpifiCb"
 wallet_path = "wallet.hold.example"
 wallet_password = "changeme"
 webhook_url = "http://localhost:1080"
