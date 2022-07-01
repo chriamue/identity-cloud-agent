@@ -2,6 +2,7 @@ use crate::connection::{invitation::Invitation, Connections, Termination, Termin
 use crate::credential::{Credentials, IssueCredentialEvent, IssueCredentialEvents};
 use crate::message::{MessageEvent, MessageEvents};
 use crate::ping::{PingEvent, PingEvents};
+use crate::presentation::{PresentProofEvent, PresentProofEvents};
 use crate::wallet::Wallet;
 use async_trait::async_trait;
 use base64::decode;
@@ -12,9 +13,9 @@ use didcomm_rs::{
     crypto::{CryptoAlgorithm, SignatureAlgorithm},
     Message,
 };
-use identity_iota::client::ResolvedIotaDocument;
-use identity_iota::client::Resolver;
+use identity_iota::client::{ResolvedIotaDocument, Resolver};
 use identity_iota::credential::Credential;
+use identity_iota::credential::Presentation;
 use identity_iota::did::MethodScope;
 use identity_iota::iota_core::{IotaDID, IotaVerificationMethod};
 use identity_iota::prelude::{KeyPair, KeyType};
@@ -49,6 +50,7 @@ pub fn didcomm_options() -> Status {
     Status::Ok
 }
 
+#[allow(clippy::too_many_arguments)]
 #[openapi(tag = "didcomm")]
 #[post("/", format = "any", data = "<body>")]
 pub async fn post_endpoint(
@@ -58,6 +60,7 @@ pub async fn post_endpoint(
     ping_events: &State<Arc<Mutex<PingEvents>>>,
     issue_credential_events: &State<Arc<Mutex<IssueCredentialEvents>>>,
     message_events: &State<Arc<Mutex<MessageEvents>>>,
+    present_proof_events: &State<Arc<Mutex<PresentProofEvents>>>,
     body: Json<Value>,
 ) -> Result<Json<Value>, Status> {
     let body_str = serde_json::to_string(&body.into_inner()).unwrap();
@@ -102,6 +105,27 @@ pub async fn post_endpoint(
                 .await
                 .unwrap();
             Ok(Json(json!(ping_response)))
+        }
+        "https://didcomm.org/present-proof/2.1/presentation" => {
+            for attachment in received.get_attachments() {
+                let presentation = decode(attachment.data.base64.as_ref().unwrap()).unwrap();
+                let presentation = std::str::from_utf8(&presentation).unwrap();
+                let presentation: Presentation = serde_json::from_str(presentation).unwrap();
+                present_proof_events
+                    .try_lock()
+                    .unwrap()
+                    .send(PresentProofEvent::ProofReceived(
+                        received
+                            .get_didcomm_header()
+                            .from
+                            .as_ref()
+                            .unwrap()
+                            .to_string(),
+                        serde_json::to_value(&presentation).unwrap(),
+                    ))
+                    .await;
+            }
+            Ok(Json(json!({})))
         }
         "https://didcomm.org/issue-credential/2.1/issue-credential" => {
             for attachment in received.get_attachments() {

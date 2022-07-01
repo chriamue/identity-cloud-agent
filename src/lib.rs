@@ -33,6 +33,7 @@ use credential::{Credentials, IssueCredentialEvents};
 pub use didcomm::DidComm;
 use message::MessageEvents;
 use ping::PingEvents;
+use presentation::PresentProofEvents;
 use schema::Schemas;
 pub use webhook::Webhook;
 
@@ -63,6 +64,8 @@ pub async fn rocket(
         Arc::new(Mutex::new(IssueCredentialEvents::new()));
     let ping_events: Arc<Mutex<PingEvents>> = Arc::new(Mutex::new(PingEvents::new()));
     let message_events: Arc<Mutex<MessageEvents>> = Arc::new(Mutex::new(MessageEvents::new()));
+    let present_proof_events: Arc<Mutex<PresentProofEvents>> =
+        Arc::new(Mutex::new(PresentProofEvents::new()));
 
     let mut webhook_pool = webhook_pool;
 
@@ -75,6 +78,9 @@ pub async fn rocket(
     webhook_pool.spawn_ping_events(ping_events.clone()).await;
     webhook_pool
         .spawn_message_events(message_events.clone())
+        .await;
+    webhook_pool
+        .spawn_present_proof_events(present_proof_events.clone())
         .await;
 
     rocket
@@ -136,6 +142,7 @@ pub async fn rocket(
         .manage(issue_credential_events)
         .manage(ping_events)
         .manage(message_events)
+        .manage(present_proof_events)
 }
 
 #[cfg(test)]

@@ -21,7 +21,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+pub mod events;
 pub mod proposal;
+
+pub use events::{PresentProofEvent, PresentProofEvents};
 
 fn example_connection_id() -> &'static str {
     "2fecc993-b92c-4152-8c81-35adde124382"
@@ -75,13 +78,13 @@ pub async fn post_send_presentation(
         .unwrap();
 
     let attachment = serde_json::to_value(&presentation).unwrap();
-    let mut issue = PresentProofResponseBuilder::new()
+    let mut proof = PresentProofResponseBuilder::new()
         .goal_code("present-proof".to_string())
         .attachment(attachment)
         .build_presentation()
         .unwrap();
-    issue = add_return_route_all_header(issue);
-    let message = sign_and_encrypt(&issue, &did_from, &did_to, &keypair)
+    proof = add_return_route_all_header(proof);
+    let message = sign_and_encrypt(&proof, &did_from, &did_to, &keypair)
         .await
         .unwrap();
 

@@ -7,12 +7,14 @@ use crate::{test_rocket, test_rocket_with_webhook_client};
 use base58::FromBase58;
 use didcomm_mediator::message::add_return_route_all_header;
 use didcomm_protocols::IssueCredentialResponseBuilder;
+use didcomm_protocols::PresentProofResponseBuilder;
 use didcomm_protocols::TrustPingResponseBuilder;
 use didcomm_rs::Message;
 use identity_iota::account::{Account, AutoSave, IdentitySetup, MethodContent, Result};
 use identity_iota::account_storage::MemStore;
 use identity_iota::core::{FromJson, Url};
 use identity_iota::credential::{Credential, CredentialBuilder, Subject};
+use identity_iota::credential::{Presentation, PresentationBuilder};
 use identity_iota::prelude::KeyPair;
 use identity_iota::prelude::*;
 use rocket::http::Status;
@@ -88,6 +90,81 @@ async fn test_receive_issue_credential() {
         webhook::test_client::last_response(&webhook_client).unwrap(),
         webhook_response
     );
+}
+
+#[tokio::test]
+async fn test_receive_present_proof() {
+    let webhook_client = Box::new(webhook::test_client::TestClient::new(
+        "http://localhost".to_string(),
+    )) as Box<dyn webhook::Webhook>;
+    let webhook_client = Arc::new(Mutex::new(webhook_client));
+    let client = Client::tracked(test_rocket_with_webhook_client(webhook_client.clone()).await)
+        .await
+        .expect("valid rocket instance");
+
+    let did = get_did(&client).await.unwrap();
+
+    let subject: Subject = Subject::from_json_value(
+        json!({"id": Url::parse(did.as_str()).unwrap(), "attributes": "None".to_string()}),
+    )
+    .unwrap();
+
+    let credential: Credential = CredentialBuilder::default()
+        .id(Url::parse("https://example.edu/credentials/3732").unwrap())
+        .issuer(Url::parse(did.as_str()).unwrap())
+        .subject(subject)
+        .build()
+        .unwrap();
+
+    let webhook_response = serde_json::to_value(IssueCredentialEvent::IssueCredentialReceived(
+        did.to_string(),
+        serde_json::to_value(&credential).unwrap(),
+    ))
+    .unwrap();
+
+    let attachment = serde_json::to_value(&credential).unwrap();
+    let mut message = IssueCredentialResponseBuilder::new()
+        .goal_code("issue-vc".to_string())
+        .attachment(attachment)
+        .build_issue_credential()
+        .unwrap();
+    message = add_return_route_all_header(message);
+    message = message.from(&did).to(&[&did]);
+
+    let response = client.post(format!("/")).json(&message).dispatch().await;
+    assert_eq!(response.status(), Status::Ok);
+
+    let response = client.get("/credentials").dispatch().await;
+    assert_eq!(response.status(), Status::Ok);
+    let response = response.into_json::<Value>().await.unwrap();
+    let credentials = response.get("result").unwrap().as_array().unwrap();
+    assert_eq!(credentials.len(), 1);
+
+    let credential: Credential = serde_json::from_value(credentials[0].clone()).unwrap();
+    assert_eq!(
+        webhook::test_client::last_response(&webhook_client).unwrap(),
+        webhook_response
+    );
+
+    let presentation: Presentation = PresentationBuilder::default()
+        .id(Url::parse(did.as_str()).unwrap())
+        .holder(Url::parse(did.as_str()).unwrap())
+        .credential(credential.clone())
+        .build()
+        .unwrap();
+
+    let attachment = serde_json::to_value(&presentation).unwrap();
+    let mut message = PresentProofResponseBuilder::new()
+        .goal_code("present-proof".to_string())
+        .attachment(attachment)
+        .build_presentation()
+        .unwrap();
+
+    message = add_return_route_all_header(message);
+    message = message.from(&did).to(&[&did]);
+
+    let response = client.post(format!("/")).json(&message).dispatch().await;
+    assert_eq!(response.status(), Status::Ok);
 }
 
 #[tokio::test]

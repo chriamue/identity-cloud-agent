@@ -2,6 +2,7 @@ use crate::connection::ConnectionEvents;
 use crate::credential::IssueCredentialEvents;
 use crate::message::MessageEvents;
 use crate::ping::PingEvents;
+use crate::presentation::PresentProofEvents;
 use async_trait::async_trait;
 use reqwest::RequestBuilder;
 use rocket::http::Status;
@@ -46,6 +47,7 @@ pub struct WebhookPool {
     pub issue_credential_task: Option<Arc<JoinHandle<()>>>,
     pub ping_task: Option<Arc<JoinHandle<()>>>,
     pub message_task: Option<Arc<JoinHandle<()>>>,
+    pub present_proof_task: Option<Arc<JoinHandle<()>>>,
 }
 
 impl Default for WebhookPool {
@@ -56,6 +58,7 @@ impl Default for WebhookPool {
             issue_credential_task: None,
             ping_task: None,
             message_task: None,
+            present_proof_task: None,
         }
     }
 }
@@ -197,6 +200,37 @@ impl WebhookPool {
         };
         let task = tokio::task::spawn(future);
         self.message_task = Some(Arc::new(task));
+    }
+
+    pub async fn spawn_present_proof_events(
+        &mut self,
+        present_proof_events: Arc<Mutex<PresentProofEvents>>,
+    ) {
+        let mut events = {
+            let mut present_proof_events = present_proof_events.try_lock().unwrap();
+            present_proof_events
+                .observe(Channel::Unbounded.into())
+                .await
+                .expect("observe")
+        };
+        let webhooks: WebhookHashMap = self.webhooks.clone();
+        let future = async move {
+            while let Some(event) = events.next().await {
+                match Self::post_webhooks(
+                    "present_proof_v2_0",
+                    &serde_json::to_value(&event).unwrap(),
+                    webhooks.clone(),
+                )
+                .await
+                {
+                    Ok(_) => (),
+                    Err(err) => println!("{:?}", err),
+                }
+            }
+            println!("end async ping future events");
+        };
+        let task = tokio::task::spawn(future);
+        self.present_proof_task = Some(Arc::new(task));
     }
 }
 
