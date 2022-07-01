@@ -4,7 +4,7 @@ use {futures::SinkExt, pharos::*};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum IssueCredentialEvent {
-    IssueCredentialReceived(String, Value),
+    IssueCredentialReceived { from: String, value: Value },
 }
 
 pub struct IssueCredentialEvents {
@@ -52,15 +52,18 @@ mod tests {
             .await
             .expect("observe");
         issue_credential_events
-            .send(IssueCredentialEvent::IssueCredentialReceived(
-                String::default(),
-                Value::Null,
-            ))
+            .send(IssueCredentialEvent::IssueCredentialReceived {
+                from: String::default(),
+                value: Value::Null,
+            })
             .await;
         let evt = dbg!(events.next().await.unwrap());
         drop(issue_credential_events);
         assert_eq!(
-            IssueCredentialEvent::IssueCredentialReceived(String::default(), Value::Null),
+            IssueCredentialEvent::IssueCredentialReceived {
+                from: String::default(),
+                value: Value::Null
+            },
             evt
         );
         assert_eq!(None, events.next().await);

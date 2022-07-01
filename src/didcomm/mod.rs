@@ -136,15 +136,15 @@ pub async fn post_endpoint(
                 issue_credential_events
                     .try_lock()
                     .unwrap()
-                    .send(IssueCredentialEvent::IssueCredentialReceived(
-                        received
+                    .send(IssueCredentialEvent::IssueCredentialReceived {
+                        from: received
                             .get_didcomm_header()
                             .from
                             .as_ref()
                             .unwrap()
                             .to_string(),
-                        serde_json::to_value(&credential).unwrap(),
-                    ))
+                        value: serde_json::to_value(&credential).unwrap(),
+                    })
                     .await;
                 info!("issuance: {:?}", credential);
                 let mut lock = credentials.credentials.lock().await;

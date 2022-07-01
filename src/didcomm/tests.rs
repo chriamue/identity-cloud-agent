@@ -63,10 +63,10 @@ async fn test_receive_issue_credential() {
         .build()
         .unwrap();
 
-    let webhook_response = serde_json::to_value(IssueCredentialEvent::IssueCredentialReceived(
-        did.to_string(),
-        serde_json::to_value(&credential).unwrap(),
-    ))
+    let webhook_response = serde_json::to_value(IssueCredentialEvent::IssueCredentialReceived {
+        from: did.to_string(),
+        value: serde_json::to_value(&credential).unwrap(),
+    })
     .unwrap();
 
     let attachment = serde_json::to_value(&credential).unwrap();
@@ -116,10 +116,10 @@ async fn test_receive_present_proof() {
         .build()
         .unwrap();
 
-    let webhook_response = serde_json::to_value(IssueCredentialEvent::IssueCredentialReceived(
-        did.to_string(),
-        serde_json::to_value(&credential).unwrap(),
-    ))
+    let webhook_response = serde_json::to_value(IssueCredentialEvent::IssueCredentialReceived {
+        from: did.to_string(),
+        value: serde_json::to_value(&credential).unwrap(),
+    })
     .unwrap();
 
     let attachment = serde_json::to_value(&credential).unwrap();
